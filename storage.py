@@ -71,6 +71,11 @@ class Store:
                 guild INTEGER, channel INTEGER, message INTEGER, timestamp INTEGER,
                 payload TEXT, PRIMARY KEY(guild, channel,message)
             );
+            CREATE TABLE IF NOT EXISTS recovery_jobs (
+                guild INTEGER, channel INTEGER, status TEXT DEFAULT 'pending',
+                attempts INTEGER DEFAULT 0, error TEXT, retry_at INTEGER DEFAULT 0,
+                replacement INTEGER, PRIMARY KEY(guild,channel)
+            );
         """)
 
     def option(self, guild: int, key: str, default=None):
@@ -151,11 +156,12 @@ class Store:
         return [(row[0], json.loads(row[1])) for row in self.db.execute("SELECT channel,snapshot FROM channel_snapshots WHERE guild=?", (guild,))]
 
     def archive(self, guild: int, channel: int, message: int, timestamp: int, payload: dict):
+        limit = max(100,min(10000,int(self.option(guild,"recovery_plus",{}).get("limit",1000))))
         with self.db:
             previous = self.db.execute("SELECT payload FROM message_backups WHERE guild=? AND channel=? AND message=?", (guild, channel, message)).fetchone()
             self.db.execute("INSERT OR REPLACE INTO message_backups VALUES (?,?,?,?,?)", (guild, channel, message, timestamp, json.dumps(payload)))
-            evicted = self.db.execute("SELECT payload FROM message_backups WHERE guild=? AND channel=? AND message NOT IN (SELECT message FROM message_backups WHERE guild=? AND channel=? ORDER BY timestamp DESC,message DESC LIMIT 1000)", (guild, channel, guild, channel)).fetchall()
-            self.db.execute("DELETE FROM message_backups WHERE guild=? AND channel=? AND message NOT IN (SELECT message FROM message_backups WHERE guild=? AND channel=? ORDER BY timestamp DESC,message DESC LIMIT 1000)", (guild, channel, guild, channel))
+            evicted = self.db.execute("SELECT payload FROM message_backups WHERE guild=? AND channel=? AND message NOT IN (SELECT message FROM message_backups WHERE guild=? AND channel=? ORDER BY timestamp DESC,message DESC LIMIT ?)", (guild, channel, guild, channel,limit)).fetchall()
+            self.db.execute("DELETE FROM message_backups WHERE guild=? AND channel=? AND message NOT IN (SELECT message FROM message_backups WHERE guild=? AND channel=? ORDER BY timestamp DESC,message DESC LIMIT ?)", (guild, channel, guild, channel,limit))
         return ([json.loads(previous[0])] if previous else []) + [json.loads(row[0]) for row in evicted]
 
     def messages(self, guild: int, channel: int):

@@ -11,7 +11,7 @@ from difflib import get_close_matches
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from storage import duration_seconds
 
@@ -91,11 +91,15 @@ class VerifyModal(discord.ui.Modal, title="Kuro verification"):
             return
         await interaction.response.defer(ephemeral=True)
         member = await interaction.guild.fetch_member(interaction.user.id)
-        if member.created_at > discord.utils.utcnow() - timedelta(days=config["min_days"]):
+        if member.created_at > discord.utils.utcnow() - timedelta(days=config["min_days"]) and not self.features.store.option(interaction.guild_id,"verification_policy",{}).get("enabled"):
             await interaction.followup.send(f"Your account must be at least {config['min_days']} days old.", ephemeral=True)
             return
         if self.features.store.global_ban(interaction.guild_id, member.id) and not self.features.store.whitelisted(interaction.guild_id, member.id):
             await interaction.followup.send("A moderator needs to review your account before verification.", ephemeral=True)
+            return
+        extras = self.features.bot.get_cog("Wishlist") if hasattr(self.features.bot,"get_cog") else None
+        if extras and (review_message := await extras.verification_gate(member)):
+            await interaction.followup.send(review_message, ephemeral=True)
             return
         role = interaction.guild.get_role(config["role"])
         if not role or not self.features.safe_role(role, interaction.guild) or not interaction.guild.me.guild_permissions.manage_roles:
@@ -190,6 +194,22 @@ class Features(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(VerifyView(self))
+        self.healing.start()
+
+    async def cog_unload(self):
+        self.healing.cancel()
+
+    @tasks.loop(seconds=15)
+    async def healing(self):
+        for guild in self.bot.guilds:
+            try:
+                await self.reconcile(guild)
+            except Exception as exc:
+                log.error("Recovery tick failed in server %s: %s",guild.id,type(exc).__name__)
+
+    @healing.before_loop
+    async def before_healing(self):
+        await self.bot.wait_until_ready()
 
     def require_content(self):
         if not self.bot.intents.message_content:
@@ -212,6 +232,8 @@ class Features(commands.Cog):
             raise ValueError("The verification role must be below your highest role.")
         if self.store.settings(interaction.guild_id)["autorole"] == role.id:
             raise ValueError("This role is already the join autorole. Disable that autorole before using it for verification.")
+        if role.id==(self.store.option(interaction.guild_id,"jail") or {}).get("role"):
+            raise ValueError("The verified role must be separate from the jail role.")
         await interaction.response.defer(ephemeral=True)
         panel = await channel.send("**Welcome!** Press Verify and complete the short challenge to receive your member role.", view=VerifyView(self))
         self.store.set_option(interaction.guild_id, "verification", {"channel": channel.id, "role": role.id, "min_days": min_account_days, "panel": panel.id})
@@ -289,6 +311,8 @@ class Features(commands.Cog):
                     member = None
                 if member and member.top_role >= guild.me.top_role:
                     result = "role hierarchy blocked"
+                elif self.store.whitelisted(guild.id,member_id):
+                    result = "whitelisted"
                 else:
                     await guild.ban(discord.Object(id=member_id), reason=f"Kuro shared ban by {row['actor']}: {row['reason']}"[:512], delete_message_seconds=0)
                     result = "banned"
@@ -410,10 +434,13 @@ class Features(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if not self.bot.intents.message_content or not message.guild or message.author.bot or message.webhook_id:
+        if not self.bot.intents.message_content or not message.guild or message.author.id == self.bot.user.id:
             return
-        if self.store.option(message.guild.id, "recovery", {}).get("archive"):
+        include_bots = self.store.option(message.guild.id,"recovery_plus",{}).get("bots",False)
+        if self.store.option(message.guild.id, "recovery", {}).get("archive") and (not message.author.bot or include_bots):
             await self.archive_message(message)
+        if message.author.bot or message.webhook_id:
+            return
         if self.store.option(message.guild.id, "deathnote_channel") == message.channel.id:
             if not message.author.guild_permissions.ban_members:
                 return
@@ -461,8 +488,9 @@ class Features(commands.Cog):
                 log.warning("Shared chat delivery failed for channel %s", row[0])
 
     async def archive_message(self, message):
-        # Thread history needs separate reconstruction; do not claim it as channel history.
-        if not isinstance(message.channel, discord.TextChannel):
+        if not isinstance(message.channel, (discord.TextChannel,discord.Thread)):
+            return
+        if isinstance(message.channel,discord.Thread) and message.channel.is_private():
             return
         attachments = []
         for attachment in message.attachments:
@@ -498,7 +526,7 @@ class Features(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, after):
-        if self.bot.intents.message_content and after.guild and not after.author.bot and self.store.option(after.guild.id, "recovery", {}).get("archive"):
+        if self.bot.intents.message_content and after.guild and after.author.id != self.bot.user.id and (not after.author.bot or self.store.option(after.guild.id,"recovery_plus",{}).get("bots",False)) and self.store.option(after.guild.id, "recovery", {}).get("archive"):
             await self.archive_message(after)
 
     def channel_snapshot(self, channel):
@@ -528,11 +556,12 @@ class Features(commands.Cog):
                 channels = await interaction.guild.fetch_channels()
                 with self.store.db:
                     self.store.db.execute("DELETE FROM channel_snapshots WHERE guild=?", (interaction.guild_id,))
+                    self.store.db.execute("DELETE FROM recovery_jobs WHERE guild=?", (interaction.guild_id,))
                 for channel in channels:
                     if (snapshot := self.channel_snapshot(channel)):
                         self.store.snapshot(interaction.guild_id, channel.id, snapshot)
             self.store.set_option(interaction.guild_id, "recovery", {"enabled": enabled, "archive": archive_messages and enabled})
-        await interaction.followup.send("Recovery enabled. Deleted channels will be recreated. Backups capture new messages only, up to 1,000 per text channel; the latest 50 are replayed after recovery." if enabled else "Recovery disabled. Channels may now be intentionally deleted without recreation. Saved backups are retained.", ephemeral=True)
+        await interaction.followup.send("Recovery enabled. New channels and category moves are saved automatically. Missing categories are recreated first, then their channels, one recovery step every 15 seconds. /recovery_status shows the queue. Message backup limits are configurable with /recovery_plus setup." if enabled else "Recovery disabled. Channels may now be intentionally deleted without recreation. Saved backups are retained.", ephemeral=True)
 
     async def restore_channel(self, guild, old_id, snapshot):
         overwrites = {}
@@ -566,6 +595,9 @@ class Features(commands.Cog):
             else:
                 return None
         self.store.remap_channel(guild.id, old_id, created.id)
+        extras = self.bot.get_cog("Wishlist") if hasattr(self.bot,"get_cog") else None
+        if extras:
+            extras.state.remap_channel(guild.id,old_id,created.id)
         self.store.snapshot(guild.id, created.id, self.channel_snapshot(created))
         if isinstance(created, discord.TextChannel):
             await self.replay_messages(created)
@@ -579,11 +611,12 @@ class Features(commands.Cog):
 
     async def replay_messages(self, channel):
         messages = self.store.messages(channel.guild.id, channel.id)
-        if not messages:
+        replay = self.store.option(channel.guild.id,"recovery_plus",{}).get("replay",50)
+        if not messages or replay == 0:
             return
         try:
-            await channel.send(f"**Kuro recovery:** replaying the latest {min(50, len(messages))} saved messages. These are archive copies; original message IDs and authorship cannot be restored.", allowed_mentions=NO_MENTIONS)
-            for message in messages[-50:]:
+            await channel.send(f"**Kuro recovery:** replaying the latest {min(replay, len(messages))} saved messages. These are archive copies; original message IDs and authorship cannot be restored.", allowed_mentions=NO_MENTIONS)
+            for message in messages[-replay:]:
                 header = discord.utils.escape_markdown(f"{message['author']} · {message['created']}")
                 files, links = [], []
                 for attachment in message.get("attachments", []):
@@ -609,13 +642,21 @@ class Features(commands.Cog):
         async with lock:
             if not self.store.option(guild.id, "recovery", {}).get("enabled"):
                 return
+            extras = self.bot.get_cog("Wishlist") if hasattr(self.bot,"get_cog") else None
+            if extras:
+                await extras.restore_roles(guild)
             # A fresh REST inventory prevents cache gaps on reconnect from cloning real channels.
             try:
                 existing = {channel.id: channel for channel in await guild.fetch_channels()}
             except discord.HTTPException:
                 log.warning("Recovery inventory failed for server %s", guild.id)
                 return
-            snapshots = sorted(self.store.snapshots(guild.id), key=lambda item: (item[1]["type"] != discord.ChannelType.category.value, item[1]["position"]))
+            snapshots = sorted(self.store.snapshots(guild.id), key=lambda item: (item[1]["type"] != discord.ChannelType.category.value, item[1].get("category") or 0, item[1]["position"]))
+            with self.store.db:
+                for channel_id,snapshot in snapshots:
+                    if channel_id not in existing:
+                        self.store.db.execute("INSERT OR IGNORE INTO recovery_jobs(guild,channel) VALUES (?,?)",(guild.id,channel_id))
+            attempted = False
             for old_id, snapshot in snapshots:
                 # Category restoration may have remapped this snapshot since inventory.
                 current = dict(self.store.snapshots(guild.id)).get(old_id, snapshot)
@@ -625,13 +666,27 @@ class Features(commands.Cog):
                     if parent and getattr(channel, "category_id", None) != parent and guild.get_channel(parent):
                         try:
                             await channel.edit(category=guild.get_channel(parent), reason="Kuro recovered parent category")
+                            attempted = True
                         except discord.HTTPException:
                             log.warning("Could not restore channel %s category", old_id)
+                        break
                     continue
+                job = self.store.db.execute("SELECT * FROM recovery_jobs WHERE guild=? AND channel=?",(guild.id,old_id)).fetchone()
+                if job and job["retry_at"] > time.time():
+                    continue
+                attempted = True
                 try:
-                    await self.restore_channel(guild, old_id, current)
+                    created = await self.restore_channel(guild, old_id, current)
+                    with self.store.db:
+                        self.store.db.execute("UPDATE recovery_jobs SET status='restored',replacement=?,error=NULL WHERE guild=? AND channel=?",(created.id,guild.id,old_id))
                 except (discord.HTTPException, ValueError) as exc:
                     log.warning("Channel %s recovery failed: %s", old_id, str(exc)[:200])
+                    attempts = (job["attempts"] if job else 0)+1
+                    with self.store.db:
+                        self.store.db.execute("UPDATE recovery_jobs SET status='waiting',attempts=?,error=?,retry_at=? WHERE guild=? AND channel=?",(attempts,str(exc)[:300],int(time.time())+min(900,15*2**min(attempts,6)),guild.id,old_id))
+                break
+            if extras and not attempted:
+                await extras.restore_threads(guild)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -645,13 +700,24 @@ class Features(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
-        await self.reconcile(channel.guild)
+        if self.store.option(channel.guild.id,"recovery",{}).get("enabled"):
+            # Queue only. Rebuilding in the event handler would race a mass deletion.
+            if channel.id not in dict(self.store.snapshots(channel.guild.id)) and (snapshot:=self.channel_snapshot(channel)):
+                self.store.snapshot(channel.guild.id,channel.id,snapshot)
+            with self.store.db:
+                self.store.db.execute("INSERT OR IGNORE INTO recovery_jobs(guild,channel) VALUES (?,?)",(channel.guild.id,channel.id))
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel):
         lock = self.recovery_locks.setdefault(channel.guild.id, asyncio.Lock())
         async with lock:
             if self.store.option(channel.guild.id, "recovery", {}).get("enabled") and (snapshot := self.channel_snapshot(channel)):
+                if self.store.option(channel.guild.id,"recovery_plus",{}).get("roles"):
+                    previous=dict(self.store.snapshots(channel.guild.id)).get(channel.id,{})
+                    present={item["id"] for item in snapshot["overwrites"]}
+                    for overwrite in previous.get("overwrites",[]):
+                        if overwrite["role"] and overwrite["id"] not in present and channel.guild.get_role(overwrite["id"]) is None:
+                            snapshot["overwrites"].append(overwrite)
                 self.store.snapshot(channel.guild.id, channel.id, snapshot)
 
     @commands.Cog.listener()
@@ -676,6 +742,12 @@ class Features(commands.Cog):
             f"Shared chat channels: {chat_count}",
             f"Channel recovery: {'on' if recovery.get('enabled') else 'off'}",
             f"New message backups: {'on' if recovery.get('archive') else 'off'}",
+            f"Jail role: {(self.store.option(interaction.guild_id,'jail') or {}).get('role','off')}",
+            f"Activity XP: {'on' if self.store.option(interaction.guild_id,'levels',{}).get('enabled') else 'off'}",
+            f"Verification review: {'on' if self.store.option(interaction.guild_id,'verification_policy',{}).get('enabled') else 'off'}",
+            f"Role recovery: {'on' if self.store.option(interaction.guild_id,'recovery_plus',{}).get('roles') else 'off'}",
+            f"Thread recovery: {'on' if self.store.option(interaction.guild_id,'recovery_plus',{}).get('threads') else 'off'}",
+            f"Owner lockdown: {'on' if self.store.option(interaction.guild_id,'lockdown',False) else 'off'}",
         ]
         await interaction.response.send_message("\n".join(lines), ephemeral=True, allowed_mentions=NO_MENTIONS)
 
@@ -683,8 +755,30 @@ class Features(commands.Cog):
     @manager
     async def recovery_retry(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        with self.store.db:
+            self.store.db.execute("UPDATE recovery_jobs SET retry_at=0 WHERE guild=? AND status!='restored'",(interaction.guild_id,))
         await self.reconcile(interaction.guild)
-        await interaction.followup.send("Recovery checked. Any permission or missing-role failures are recorded in Kuro's logs.", ephemeral=True)
+        await interaction.followup.send("Recovery retried one step. Remaining missing channels stay queued; check /recovery_status.", ephemeral=True)
+
+    @app_commands.command(description="See missing channels grouped by category and recent recovery failures.")
+    @manager
+    async def recovery_status(self,interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        actual={channel.id for channel in await interaction.guild.fetch_channels()}
+        snapshots=dict(self.store.snapshots(interaction.guild_id))
+        groups={}
+        for channel_id,snapshot in snapshots.items():
+            if channel_id not in actual:
+                parent=snapshot.get("category")
+                name=snapshots.get(parent,{}).get("name","Uncategorized") if snapshot["type"]!=4 else "Missing categories"
+                groups[name]=groups.get(name,0)+1
+        errors=self.store.db.execute("SELECT channel,error FROM recovery_jobs WHERE guild=? AND status='waiting' ORDER BY retry_at LIMIT 5",(interaction.guild_id,)).fetchall()
+        lines=["Recovery: "+("on" if self.store.option(interaction.guild_id,"recovery",{}).get("enabled") else "off"),f"Saved channels and categories: {len(snapshots)}"]
+        lines += [f"{name}: {count} missing" for name,count in groups.items()]
+        lines += [f"Channel {row['channel']}: {row['error']}" for row in errors]
+        if not groups:
+            lines.append("All saved channels are present.")
+        await interaction.followup.send("\n".join(lines)[:1900],ephemeral=True,allowed_mentions=NO_MENTIONS)
 
     @app_commands.command(description="Export saved text, embed data, and attachment references from a channel.")
     @manager

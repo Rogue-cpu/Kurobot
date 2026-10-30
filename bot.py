@@ -20,16 +20,18 @@ store = Store(str(DATA_DIR / "kuro.sqlite3"))
 def safe_role(role: discord.Role, guild: discord.Guild) -> bool:
     permissions = role.permissions
     return (not role.is_default() and not role.managed and role < guild.me.top_role
-            and not any((permissions.administrator, permissions.manage_guild,
-                         permissions.manage_roles, permissions.manage_channels,
-                         permissions.ban_members, permissions.kick_members,
-                         permissions.manage_webhooks, permissions.moderate_members)))
+            and not any(value for name, value in permissions if name.startswith("manage_") or name in {
+                "administrator", "ban_members", "kick_members", "moderate_members",
+                "mention_everyone", "view_audit_log", "mute_members", "deafen_members", "move_members"
+            }))
 
 
 class Kuro(commands.Bot):
     async def setup_hook(self):
         from features import Features
         await self.add_cog(Features(self, store, safe_role))
+        from wishlist import Wishlist
+        await self.add_cog(Wishlist(self, store, self.get_cog("Features")))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
@@ -140,6 +142,8 @@ async def roles_setup(interaction: discord.Interaction, sticky: bool, autorole: 
     verification = store.option(interaction.guild_id, "verification")
     if autorole and verification and autorole.id == verification["role"]:
         raise ValueError("The verification role cannot also be the automatic join role.")
+    if autorole and autorole.id == (store.option(interaction.guild_id, "jail") or {}).get("role"):
+        raise ValueError("The jail label cannot also be the automatic join role.")
     if autorole and (not safe_role(autorole, interaction.guild) or (interaction.user.id != interaction.guild.owner_id and autorole >= interaction.user.top_role)):
         await interaction.response.send_message("Choose an ordinary role below both your and Kuro's highest roles.", ephemeral=True)
         return
@@ -151,19 +155,25 @@ async def roles_setup(interaction: discord.Interaction, sticky: bool, autorole: 
 async def on_member_remove(member: discord.Member):
     if store.settings(member.guild.id)["sticky"]:
         verification = store.option(member.guild.id, "verification") or {}
-        store.remember_roles(member.guild.id, member.id, [role.id for role in member.roles if safe_role(role, member.guild) and role.id != verification.get("role")])
+        jail = store.option(member.guild.id, "jail") or {}
+        store.remember_roles(member.guild.id, member.id, [role.id for role in member.roles if safe_role(role, member.guild) and role.id not in (verification.get("role"),jail.get("role"))])
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
     if store.global_ban(member.guild.id, member.id) and not store.whitelisted(member.guild.id, member.id):
         return
+    extras = bot.get_cog("Wishlist")
+    jail_state = extras.state.jail(member.guild.id,member.id) if extras else None
+    if jail_state and jail_state["due"]>time.time():
+        return
     settings = store.settings(member.guild.id)
     ids = set(store.roles(member.guild.id, member.id)) if settings["sticky"] else set()
     if settings["autorole"]:
         ids.add(settings["autorole"])
     verification = store.option(member.guild.id, "verification") or {}
-    roles = [role for role_id in ids if role_id != verification.get("role") and (role := member.guild.get_role(role_id)) and safe_role(role, member.guild)]
+    jail = store.option(member.guild.id, "jail") or {}
+    roles = [role for role_id in ids if role_id not in (verification.get("role"),jail.get("role")) and (role := member.guild.get_role(role_id)) and safe_role(role, member.guild)]
     if roles:
         try:
             await member.add_roles(*roles, reason="Kuro join / sticky roles")

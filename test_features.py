@@ -142,9 +142,10 @@ class AsyncFeatureTests(unittest.IsolatedAsyncioTestCase):
         self.store.snapshot(1, 20, {"type": 0, "position": 1})
         self.store.snapshot(1, 30, {"type": 0, "position": 2})
         guild = SimpleNamespace(id=1, fetch_channels=AsyncMock(return_value=[SimpleNamespace(id=30)]))
-        self.features.restore_channel = AsyncMock()
+        self.features.restore_channel = AsyncMock(return_value=SimpleNamespace(id=100))
         await self.features.reconcile(guild)
-        self.assertEqual([call.args[1] for call in self.features.restore_channel.await_args_list], [10, 20])
+        self.assertEqual([call.args[1] for call in self.features.restore_channel.await_args_list], [10])
+        self.assertEqual(self.store.db.execute("SELECT count(*) FROM recovery_jobs WHERE status='pending'").fetchone()[0],1)
 
     async def test_recovery_disabled_does_not_call_discord(self):
         guild = SimpleNamespace(id=1, fetch_channels=AsyncMock())

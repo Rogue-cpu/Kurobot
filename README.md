@@ -2,11 +2,14 @@
 
 A standalone Discord bot for Kuro, hosted on Railway, separate from Synapse.
 
+New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open the [printable guide](docs/Kuro%20Beginner%20Guide.html) locally in your browser. The guide explains roles, setup commands, and what to expect after a channel deletion.
+
 ## Commands
 
 | Feature | Commands |
 | --- | --- |
 | Connection and configuration | `/ping`, `/features_status` |
+| Beginner help | `/guide` |
 | Scheduled bans | `/deathnote`, `/deathnote_cancel`, `/deathnote_list` |
 | Automatic and sticky roles | `/roles_setup` |
 | Verification | `/verification_setup`, `/verification_disable` |
@@ -14,6 +17,16 @@ A standalone Discord bot for Kuro, hosted on Railway, separate from Synapse.
 | Name-based Deathnote channel | `/deathnote_channel` |
 | Cross-server chat | `/chat_invite`, `/chat_join`, `/chat_leave` |
 | Channel recovery and backups | `/recovery_setup`, `/recovery_retry`, `/backup_export` |
+| Recovery progress | `/recovery_status` |
+| Timed jail | `/jail setup`, `/jail add`, `/jail release`, `/jail list` |
+| Activity and role rewards | `/levels setup`, `/levels rank`, `/levels leaderboard`, `/levels reward`, `/levels remove_reward` |
+| Invited membership rules | `/watch invite`, `/watch add`, `/watch scan`, `/watch list`, `/watch resolve`, `/watch remove`, `/watch revoke` |
+| Verification review | `/verification_policy setup`, `/verification_policy reviews`, `/verification_policy decide` |
+| Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
+| Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
+| Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
+| Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
+| Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
 All new features start off. Managers configure features; moderators need Ban Members for ban commands. Only a server's owner can create, join, invite, or leave a shared-ban network.
 
@@ -53,13 +66,13 @@ Only channels visible to @everyone can participate. Relaying stops if a source o
 
 ### Recovery and backups
 
-`/recovery_setup enabled:true archive_messages:true` snapshots the server's categories and text, announcement, voice, stage, forum, and media channels. Kuro recreates deleted channels with saved names, positions, category placement, permission overwrites, and common channel settings. It also checks for missed deletions at startup and reconnection. It requires Manage Channels and Manage Roles, plus access to each channel. Missing permission roles block restoration instead of making a private channel public. Fix permissions/roles, then use `/recovery_retry` if needed.
+`/recovery_setup enabled:true archive_messages:true` snapshots the server's categories and text, announcement, voice, stage, forum, and media channels. New channels and moves are saved automatically. Missing categories are restored before their channels; surviving children are reattached to restored categories. A persistent queue attempts one channel recovery step per 15-second tick, with saved failures and retry backoff. It also checks for missed deletions at startup and reconnection. `/recovery_status` shows missing channels grouped by category. It requires Manage Channels and Manage Roles, plus access to each channel. Missing permission roles block restoration instead of making a private channel public. Fix permissions/roles, then use `/recovery_retry` if needed.
 
-Backups capture **new human messages in text/announcement channels after enabling**. They keep the latest 1,000 messages per channel, the latest observed edits, embed data, and attachment references. Attachments up to 8 MiB are also saved as files, within a total 256 MiB attachment budget. Larger files or downloads that fail retain links only; Discord attachment links may expire. Files belonging to messages evicted by the channel limit are pruned.
+Backups capture **new human messages in text/announcement channels and public threads after enabling**. They keep the latest 1,000 messages per channel by default, the latest observed edits, embed data, and attachment references. `/recovery_plus setup` supports 100–10,000 retained messages per channel/thread, 0–100 replayed messages, and optional other-bot message capture. Kuro's own replays are excluded. Attachments up to 8 MiB are also saved as files, within a total 256 MiB attachment budget. Larger files or downloads that fail retain links only; Discord attachment links may expire. Files belonging to messages evicted by the channel limit are pruned.
 
 After channel recovery, Kuro replays the latest 50 saved messages as labelled archive copies and reuploads locally saved attachments. Full retained text/embed/reference data can be retrieved with `/backup_export`, which requires Manage Server plus access to the channel and its history. Saved attachment files are stored on the volume. Recovered verification channels get a new live button; shared-chat and Deathnote channel settings follow their replacement channels.
 
-**Disable recovery before intentionally deleting channels.** Backups remain when recovery is disabled. This version does not recreate deleted roles, forum posts/threads, original message IDs/authorship, reactions, pins, invites, or every specialized channel setting. It does not punish attackers or operate without Kuro's permissions. Recovery restores deleted channels; it does not automatically roll back every edit to an existing channel. No server destruction or self-replication is implemented.
+**Disable recovery before intentionally deleting channels.** Backups remain when recovery is disabled. Optional `/recovery_plus setup` adds deleted-role definitions and public forum/thread recovery. Ordinary role assignments are restored in small batches; sensitive assignments need owner review. `/recovery_plus history` captures existing accessible history and archived public threads within its stated limits. Private threads, original message IDs/authorship, reactions, pins, invites, and every specialized channel setting are not restored. Kuro does not punish attackers or operate without its permissions. Recovery restores deleted channels; it does not automatically roll back every edit to an existing channel. No server-destruction triggers or bot self-replication are implemented; owner-controlled blueprints copy structure into existing consenting destination servers.
 
 ## Hosting and setup
 
@@ -85,9 +98,9 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_features test_storage -q
+.\.venv\Scripts\python.exe -m unittest test_wishlist test_features test_storage -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
 
-Still outside this release: jail, leveling/activity perks, arbitrary-server membership enforcement, advanced alt detection, and full role/thread/history reconstruction.
+Still outside this release: arbitrary-server membership scraping, device/IP-based alternate-account detection, destructive retaliation triggers, private-thread recovery, and exact reconstruction of original Discord messages. Account-age/avatar/burst checks and moderator review are risk signals, not proof of shared identity. Owner-change alerts and manual reversible lockdown are available.
