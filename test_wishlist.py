@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock,Mock
 import discord
 from discord.ext import commands
 
-from features import Features
+from features import Features,VerifyModal,VerifyView
 from storage import Store
 from wishlist import BlueprintConfirm,Wishlist,moderation_target
 from wishlist_store import WishlistStore
@@ -87,6 +87,17 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.state.jail(1,2)["due"],9999)
         self.assertEqual(dict(self.core.snapshots(1))[20]["category"],10)
 
+    def test_failed_challenge_limit_persists_and_expires(self):
+        for when in range(100,105):
+            self.state.record_failure(1,2,now=when)
+        self.assertEqual(self.state.challenge_limit(1,2,now=110),1000)
+        self.assertIsNone(self.state.challenge_limit(9,2,now=110))
+        self.core.db.close()
+        self.core=Store(self.path)
+        self.state=WishlistStore(self.core)
+        self.assertEqual(self.state.challenge_limit(1,2,now=110),1000)
+        self.assertIsNone(self.state.challenge_limit(1,2,now=1005))
+
 
 class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -145,6 +156,37 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         self.core.db.commit()
         result=await self.cog.verification_gate(NS(id=2,guild=NS(id=1)))
         self.assertIn("active jail",result)
+
+    async def test_manual_account_link_reopens_approval_only_in_its_server(self):
+        self.core.set_option(1,"verification_policy",{"enabled":True})
+        self.core.set_option(1,"verification",{"min_days":0})
+        self.core.db.execute("INSERT INTO reviews VALUES (1,2,'[]','approved')")
+        self.core.db.commit()
+        member=NS(id=2,guild=NS(id=1),created_at=discord.utils.utcnow()-timedelta(days=20),avatar=object())
+        interaction=NS(guild_id=1,user=NS(id=5),response=NS(send_message=AsyncMock()))
+        await self.cog.link_account.callback(self.cog,interaction,member,"3","Staff review note")
+        self.assertEqual(self.core.db.execute("SELECT status FROM reviews").fetchone()[0],"pending")
+        self.assertIn("waiting",await self.cog.verification_gate(member))
+        self.assertIsNone(await self.cog.verification_gate(NS(id=2,guild=NS(id=9))))
+
+    async def test_wrong_answer_records_a_persistent_failure(self):
+        self.bot.get_cog.return_value=self.cog
+        modal=VerifyModal(self.features,2,1)
+        modal.answer._value="999"
+        interaction=NS(guild_id=1,user=NS(id=2),response=NS(send_message=AsyncMock()))
+        await modal.on_submit(interaction)
+        self.assertEqual(len(self.cog.state.challenge_failures(1,2)),1)
+
+    async def test_new_verification_view_enforces_stored_failure_limit(self):
+        self.bot.get_cog.return_value=self.cog
+        self.core.set_option(1,"verification",{"channel":10})
+        for _ in range(5):
+            self.cog.state.record_failure(1,2)
+        view=VerifyView(self.features)
+        interaction=NS(guild_id=1,channel_id=10,user=NS(id=2),response=NS(send_message=AsyncMock(),send_modal=AsyncMock()))
+        await view.verify.callback(interaction)
+        interaction.response.send_modal.assert_not_called()
+        self.assertIn("Too many",interaction.response.send_message.await_args.args[0])
 
     async def test_private_threads_are_never_copied(self):
         self.core.set_option(1,"recovery_plus",{"threads":True})

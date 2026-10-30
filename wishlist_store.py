@@ -64,11 +64,33 @@ class WishlistStore:
             CREATE TABLE IF NOT EXISTS recovered_staff_roles (
                 guild INTEGER, role INTEGER, former_members TEXT, PRIMARY KEY(guild,role)
             );
+            CREATE TABLE IF NOT EXISTS challenge_failures (
+                guild INTEGER, member INTEGER, failed_at INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS challenge_failure_window ON challenge_failures(guild,member,failed_at);
+            CREATE TABLE IF NOT EXISTS verification_links (
+                guild INTEGER, member INTEGER, related INTEGER, note TEXT, actor INTEGER,
+                PRIMARY KEY(guild,member,related)
+            );
         """)
 
     @staticmethod
     def level(xp):
         return math.isqrt(max(0, xp) // 100)
+
+    def challenge_failures(self,guild,member,now=None):
+        now=int(time.time()) if now is None else now
+        return [row[0] for row in self.db.execute("SELECT failed_at FROM challenge_failures WHERE guild=? AND member=? AND failed_at>? ORDER BY failed_at",(guild,member,now-900))]
+
+    def record_failure(self,guild,member,now=None):
+        now=int(time.time()) if now is None else now
+        with self.db:
+            self.db.execute("DELETE FROM challenge_failures WHERE failed_at<=?",(now-900,))
+            self.db.execute("INSERT INTO challenge_failures VALUES (?,?,?)",(guild,member,now))
+
+    def challenge_limit(self,guild,member,now=None):
+        attempts=self.challenge_failures(guild,member,now)
+        return attempts[0]+900 if len(attempts)>=5 else None
 
     def award(self, guild, member, content, amount=15, cooldown=60, now=None):
         now = int(time.time()) if now is None else now

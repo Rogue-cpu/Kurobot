@@ -10,7 +10,8 @@ source=(ROOT/"docs"/"BEGINNER_GUIDE.md").read_text(encoding="utf-8")
 def inline(text):
     text=escape(text)
     text=re.sub(r"`([^`]+)`",r"<code>\1</code>",text)
-    return re.sub(r"\*\*([^*]+)\*\*",r"<strong>\1</strong>",text)
+    text=re.sub(r"\*\*([^*]+)\*\*",r"<strong>\1</strong>",text)
+    return re.sub(r"\[([^\]]+)\]\((https://[^)\s]+)\)",r'<a href="\2">\1</a>',text)
 
 
 blocks=[]
@@ -72,5 +73,5 @@ rest=blocks[2:]
 html+='\n'.join(first)+'<button type="button" onclick="window.print()">Print or save as PDF</button><nav aria-label="Contents"><strong>Find what you need</strong>'+"".join(toc)+"</nav>"+'\n'.join(rest)
 html+='<footer>Kuro Bot guide · Keep this file with your bot documentation. Setup commands do not run from this page.</footer></main></body></html>'
 target=ROOT/"docs"/"Kuro Beginner Guide.html"
-target.write_text(html,encoding="utf-8")
+target.write_text(html,encoding="utf-8",newline="\n")
 print(f"Guide built: {len(toc)} sections")

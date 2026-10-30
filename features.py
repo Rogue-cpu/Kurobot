@@ -83,6 +83,9 @@ class VerifyModal(discord.ui.Modal, title="Kuro verification"):
             return
         self.used = True
         if self.answer.value.strip() != str(self.a + self.b):
+            extras=self.features.bot.get_cog("Wishlist") if hasattr(self.features.bot,"get_cog") else None
+            if extras:
+                extras.state.record_failure(interaction.guild_id,interaction.user.id)
             await interaction.response.send_message("Incorrect answer. Press Verify for a new challenge.", ephemeral=True)
             return
         config = self.features.store.option(interaction.guild_id, "verification")
@@ -129,6 +132,11 @@ class VerifyView(discord.ui.View):
         config = self.features.store.option(interaction.guild_id, "verification")
         if not config or interaction.channel_id != config["channel"]:
             await interaction.response.send_message("This verification panel is no longer active.", ephemeral=True)
+            return
+        extras=self.features.bot.get_cog("Wishlist") if hasattr(self.features.bot,"get_cog") else None
+        reset=extras.state.challenge_limit(interaction.guild_id,interaction.user.id) if extras else None
+        if reset:
+            await interaction.response.send_message(f"Too many incorrect challenges. Try again <t:{reset}:R>, or ask a moderator for help.",ephemeral=True)
             return
         key = (interaction.guild_id, interaction.user.id)
         now = time.monotonic()

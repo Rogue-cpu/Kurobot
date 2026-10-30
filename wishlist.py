@@ -302,8 +302,8 @@ class Wishlist(commands.Cog):
 
     @verification_policy.command(name="setup", description="Route suspicious verification attempts to a moderator review queue.")
     @manager
-    async def policy_setup(self, interaction: discord.Interaction, enabled: bool, require_avatar: bool = False, join_burst: app_commands.Range[int, 0, 1000] = 0):
-        self.core.set_option(interaction.guild_id, "verification_policy", {"enabled": enabled, "avatar": require_avatar, "burst": join_burst})
+    async def policy_setup(self, interaction: discord.Interaction, enabled: bool, require_avatar: bool = False, join_burst: app_commands.Range[int, 0, 1000] = 0, failed_challenge_review: app_commands.Range[int,0,20] = 3):
+        self.core.set_option(interaction.guild_id, "verification_policy", {"enabled": enabled, "avatar": require_avatar, "burst": join_burst,"failures":failed_challenge_review})
         await interaction.response.send_message("Verification review policy saved. Account age, optional custom avatar, recent join bursts, and membership flags can require review. These signals do not prove alternate accounts.", ephemeral=True)
 
     async def verification_gate(self, member):
@@ -326,12 +326,36 @@ class Wishlist(commands.Cog):
         count = self.db.execute("SELECT count(*) FROM recent_joins WHERE guild=? AND joined>?", (member.guild.id, int(time.time())-300)).fetchone()[0]
         if policy.get("burst") and count >= policy["burst"]:
             reasons.append("recent join burst")
+        failure_threshold=policy.get("failures",3)
+        if failure_threshold and len(self.state.challenge_failures(member.guild.id,member.id))>=failure_threshold:
+            reasons.append("repeated incorrect verification challenges")
+        if self.db.execute("SELECT 1 FROM verification_links WHERE guild=? AND member=?",(member.guild.id,member.id)).fetchone():
+            reasons.append("staff-recorded account association needs review")
         if self.db.execute("SELECT 1 FROM watch_flags WHERE guild=? AND member=? AND status NOT IN ('cleared','rule removed')", (member.guild.id,member.id)).fetchone() and not self.core.whitelisted(member.guild.id, member.id):
             reasons.append("membership rule requires review")
         if reasons:
             self.state.review(member.guild.id, member.id, reasons)
             return "Challenge completed. Your account is waiting for moderator review."
         return None
+
+    @verification_policy.command(name="link",description="Record a manual account association for future verification review.")
+    @manager
+    async def link_account(self,interaction: discord.Interaction,member: discord.Member,related_user_id: str,note: app_commands.Range[str,1,300]):
+        if not related_user_id.isdecimal() or not 0<int(related_user_id)<2**63 or int(related_user_id)==member.id:
+            raise ValueError("Enter a different valid Discord user ID.")
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO verification_links VALUES (?,?,?,?,?)",(interaction.guild_id,member.id,int(related_user_id),note,interaction.user.id))
+            self.db.execute("UPDATE reviews SET status='pending' WHERE guild=? AND member=? AND status='approved'",(interaction.guild_id,member.id))
+        await interaction.response.send_message("Manual association saved for future verification review when the review policy is enabled. It is a staff note, not proof of shared identity. Existing roles and bans were not changed.",ephemeral=True)
+
+    @verification_policy.command(name="unlink",description="Remove a manual account association from verification checks.")
+    @manager
+    async def unlink_account(self,interaction: discord.Interaction,member: discord.Member,related_user_id: str):
+        if not related_user_id.isdecimal() or not 0<int(related_user_id)<2**63:
+            raise ValueError("Enter a valid Discord user ID.")
+        with self.db:
+            self.db.execute("DELETE FROM verification_links WHERE guild=? AND member=? AND related=?",(interaction.guild_id,member.id,int(related_user_id)))
+        await interaction.response.send_message("Manual association removed. Any pending review can still be resolved with /verification_policy decide.",ephemeral=True)
 
     @verification_policy.command(name="reviews", description="Show the latest ten pending verification reviews.")
     @manager

@@ -14,7 +14,12 @@ ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 log = logging.getLogger("kuro")
 DATA_DIR = Path(os.getenv("KURO_DATA_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ROOT / "data")
+if (DATA_DIR/"RESTORE_INCOMPLETE").exists():
+    raise SystemExit("The restored data directory is incomplete. Restore a verified bundle into another new folder.")
 store = Store(str(DATA_DIR / "kuro.sqlite3"))
+if store.option(0,"restore_paused",False):
+    store.db.close()
+    raise SystemExit("Restored data is paused. Review pending actions, retire the old bot, then use scripts/recovery_bundle.py resume before starting this copy.")
 
 
 def safe_role(role: discord.Role, guild: discord.Guild) -> bool:
@@ -32,6 +37,8 @@ class Kuro(commands.Bot):
         await self.add_cog(Features(self, store, safe_role))
         from wishlist import Wishlist
         await self.add_cog(Wishlist(self, store, self.get_cog("Features")))
+        from backup_commands import Backups
+        await self.add_cog(Backups(self,store))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))

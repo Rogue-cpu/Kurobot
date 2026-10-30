@@ -10,6 +10,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | --- | --- |
 | Connection and configuration | `/ping`, `/features_status` |
 | Beginner help | `/guide` |
+| Application-owner recovery bundles | `/backups setup`, `/backups create`, `/backups status`, `/backups verify` |
 | Scheduled bans | `/deathnote`, `/deathnote_cancel`, `/deathnote_list` |
 | Automatic and sticky roles | `/roles_setup` |
 | Verification | `/verification_setup`, `/verification_disable` |
@@ -21,7 +22,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Timed jail | `/jail setup`, `/jail add`, `/jail release`, `/jail list` |
 | Activity and role rewards | `/levels setup`, `/levels rank`, `/levels leaderboard`, `/levels reward`, `/levels remove_reward` |
 | Invited membership rules | `/watch invite`, `/watch add`, `/watch scan`, `/watch list`, `/watch resolve`, `/watch remove`, `/watch revoke` |
-| Verification review | `/verification_policy setup`, `/verification_policy reviews`, `/verification_policy decide` |
+| Verification review | `/verification_policy setup`, `/verification_policy reviews`, `/verification_policy decide`, `/verification_policy link`, `/verification_policy unlink` |
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
@@ -29,6 +30,10 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
 All new features start off. Managers configure features; moderators need Ban Members for ban commands. Only a server's owner can create, join, invite, or leave a shared-ban network.
+
+Verification now persists failed challenge attempts: five incorrect answers in fifteen minutes temporarily block fresh challenges, even across restarts. Enabled review policies can flag repeated failures and scoped staff-recorded account associations. These are review signals, not device/IP identity detection.
+
+Optional full-bot recovery bundles include a consistent SQLite snapshot and referenced saved attachments, with checksums, manifest validation, and an offline restore tool. Scheduling defaults off. Full archive controls require Kuro's application owner because data can span multiple servers; archives are never posted to Discord. Restored copies remain paused until reviewed and explicitly resumed. See the [recovery runbook](docs/RECOVERY_RUNBOOK.md). No new hosting or active replica is created.
 
 ### Verification
 
@@ -98,7 +103,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_wishlist test_features test_storage -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.

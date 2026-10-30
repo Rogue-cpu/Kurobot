@@ -42,6 +42,10 @@ Use `/verification_policy reviews` to see the queue. Use `/verification_policy d
 
 These checks help you review suspicious joins. They do not prove that two accounts belong to the same person. Kuro cannot read someone's IP address or device identity from Discord.
 
+Five incorrect verification challenges within fifteen minutes temporarily stop new challenges for that account in that server. This limit survives bot restarts. With the review policy enabled, `failed_challenge_review:3` sends repeated failures to review after a correct challenge; set it to zero to disable that review signal.
+
+Staff can use `/verification_policy link member:@Someone related_user_id:THE_ID note:Your evidence or review note` to record an account association for future review. `/verification_policy unlink` removes it. These are manual staff notes, not automatic identity matching. Adding a note does not issue a ban or remove an existing role.
+
 Use `/verification_disable` to stop verification. Existing member roles remain.
 
 ## Jail and everyday moderation
@@ -160,6 +164,20 @@ The source owner runs `/blueprint create` and shares the code privately with the
 Kuro adds saved role definitions, categories, and channels gradually. Existing destination channels stay. Members, message history, bot credentials, and individual-member permission rules are not copied. Incompatible permissions stop the job for review rather than silently opening private channels.
 
 Use `/blueprint status` for progress. `/blueprint cancel` stops pending steps; a step already underway may finish, and existing copies remain. If a job fails or a creation step is interrupted, inspect the partial result before starting another import. Do not repeatedly submit the same copy.
+
+## Recovery bundles and a standby copy
+
+Kuro's application owner can use `/backups create` to save and verify a complete recovery bundle on the existing Railway volume. `/backups status` shows recorded bundles. `/backups verify` checks a saved bundle again.
+
+For a schedule, the application owner can run `/backups setup enabled:true interval_hours:24 keep:1`. Scheduled backups are off until enabled. Choose a retention count that fits the volume's available disk space. Full bundles are limited to 512 MiB of saved data and 10,000 files.
+
+A complete bundle contains the bot database and referenced saved attachments, including private channel archives and moderation records from connected servers. For this reason, these commands are restricted to Kuro's application owner, and the bundle is not posted into Discord. Ordinary server owners can still use `/backup_export` for a channel they are allowed to manage and read.
+
+The bot maintainer should download a verified bundle privately using Railway's volume file tools and keep a copy outside the volume. A backup kept only on that same volume cannot help if the entire volume is lost. Bundles exclude `.env`, bot tokens, and arbitrary files; they do contain the messages and records intentionally saved in the bot database.
+
+The maintainer can restore into a new folder with the included recovery tools. Restoring leaves the copy paused. Review pending bans and other queued actions, stop the old bot, and explicitly resume the restored copy before starting it. Run only one active Kuro process. A standby recovery copy does not automatically deploy another bot or recreate an app after removal.
+
+See the maintainer's [recovery runbook](https://github.com/Rogue-cpu/Kurobot/blob/main/docs/RECOVERY_RUNBOOK.md) for exact terminal commands.
 
 ## Owner alerts lockdown and small conveniences
 
