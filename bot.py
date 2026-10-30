@@ -13,7 +13,8 @@ from storage import Store, duration_seconds
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 log = logging.getLogger("kuro")
-store = Store(str(ROOT / "data" / "kuro.sqlite3"))
+DATA_DIR = Path(os.getenv("KURO_DATA_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ROOT / "data")
+store = Store(str(DATA_DIR / "kuro.sqlite3"))
 
 
 def safe_role(role: discord.Role, guild: discord.Guild) -> bool:
@@ -27,6 +28,8 @@ def safe_role(role: discord.Role, guild: discord.Guild) -> bool:
 
 class Kuro(commands.Bot):
     async def setup_hook(self):
+        from features import Features
+        await self.add_cog(Features(self, store, safe_role))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
@@ -75,12 +78,15 @@ class Kuro(commands.Bot):
 
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = os.getenv("MESSAGE_CONTENT_ENABLED", "false").lower() == "true"
 bot = Kuro(command_prefix=commands.when_mentioned, intents=intents)
+bot.data_dir = DATA_DIR
 
 
 @bot.event
 async def on_ready():
     log.info("Kuro connected as %s; serving %s server(s)", bot.user, len(bot.guilds))
+    log.info("Features loaded; message content=%s; persistent volume=%s", bot.intents.message_content, bool(os.getenv("RAILWAY_VOLUME_MOUNT_PATH")))
 
 
 @bot.tree.command(description="Check whether Kuro is awake.")
@@ -131,6 +137,9 @@ async def deathnote_list(interaction: discord.Interaction):
 @app_commands.checks.has_permissions(manage_roles=True)
 @app_commands.checks.bot_has_permissions(manage_roles=True)
 async def roles_setup(interaction: discord.Interaction, sticky: bool, autorole: discord.Role | None = None):
+    verification = store.option(interaction.guild_id, "verification")
+    if autorole and verification and autorole.id == verification["role"]:
+        raise ValueError("The verification role cannot also be the automatic join role.")
     if autorole and (not safe_role(autorole, interaction.guild) or (interaction.user.id != interaction.guild.owner_id and autorole >= interaction.user.top_role)):
         await interaction.response.send_message("Choose an ordinary role below both your and Kuro's highest roles.", ephemeral=True)
         return
@@ -141,16 +150,20 @@ async def roles_setup(interaction: discord.Interaction, sticky: bool, autorole: 
 @bot.event
 async def on_member_remove(member: discord.Member):
     if store.settings(member.guild.id)["sticky"]:
-        store.remember_roles(member.guild.id, member.id, [role.id for role in member.roles if safe_role(role, member.guild)])
+        verification = store.option(member.guild.id, "verification") or {}
+        store.remember_roles(member.guild.id, member.id, [role.id for role in member.roles if safe_role(role, member.guild) and role.id != verification.get("role")])
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
+    if store.global_ban(member.guild.id, member.id) and not store.whitelisted(member.guild.id, member.id):
+        return
     settings = store.settings(member.guild.id)
     ids = set(store.roles(member.guild.id, member.id)) if settings["sticky"] else set()
     if settings["autorole"]:
         ids.add(settings["autorole"])
-    roles = [role for role_id in ids if (role := member.guild.get_role(role_id)) and safe_role(role, member.guild)]
+    verification = store.option(member.guild.id, "verification") or {}
+    roles = [role for role_id in ids if role_id != verification.get("role") and (role := member.guild.get_role(role_id)) and safe_role(role, member.guild)]
     if roles:
         try:
             await member.add_roles(*roles, reason="Kuro join / sticky roles")
