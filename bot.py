@@ -47,6 +47,8 @@ class Kuro(commands.Bot):
         await self.add_cog(RaidGuard(self, store))
         from apex import Apex
         await self.add_cog(Apex(self, store))
+        from apex_hub import ApexHub
+        await self.add_cog(ApexHub(self))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
