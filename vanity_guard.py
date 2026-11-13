@@ -165,7 +165,7 @@ class VanityGuard(commands.Cog):
         }
         try:
             await channel.send(
-                "🛠️ **KURO VANITY MAINTENANCE PREAPPROVED**\\n"
+                "🛠️ **KURO VANITY MAINTENANCE PREAPPROVED**\n"
                 "Owner authorized one change from discord.gg/" + config["code"]
                 + " to discord.gg/" + new_code
                 + " before <t:" + str(expires) + ":f>. Other changes remain suspicious. "
@@ -222,12 +222,12 @@ class VanityGuard(commands.Cog):
             or member.bot or member.top_role >= guild.me.top_role
         )
         await interaction.response.send_message(
-            "DRY RUN ONLY: no roles, invites or settings were changed.\\n"
+            "DRY RUN ONLY: no roles, invites or settings were changed.\n"
             + "Member ID: " + str(member.id)
-            + "\\nWould be exempt: " + str(exempt)
-            + "\\nEligible dangerous role IDs: " + (", ".join(str(role.id) for role in removable) or "none")
-            + "\\nUnmanageable dangerous role IDs: " + (", ".join(str(role.id) for role in blocked) or "none")
-            + "\\nNo action has been taken.",
+            + "\nWould be exempt: " + str(exempt)
+            + "\nEligible dangerous role IDs: " + (", ".join(str(role.id) for role in removable) or "none")
+            + "\nUnmanageable dangerous role IDs: " + (", ".join(str(role.id) for role in blocked) or "none")
+            + "\nNo action has been taken.",
             ephemeral=True, allowed_mentions=NO_MENTIONS,
         )
 
@@ -463,7 +463,7 @@ class VanityGuard(commands.Cog):
                     return
                 try:
                     await channel.send(
-                        "✅ **KURO OWNER-PREAPPROVED VANITY CHANGE**\\n"
+                        "✅ **KURO OWNER-PREAPPROVED VANITY CHANGE**\n"
                         "Protected code updated from discord.gg/" + expected
                         + " to discord.gg/" + observed + ". "
                         "No sanction was issued. Preapproval has been consumed.",
