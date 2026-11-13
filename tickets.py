@@ -239,6 +239,10 @@ class Tickets(commands.Cog):
                     ephemeral=True,
                 )
                 return
+            # Other users may have opened tickets while Discord was creating this
+            # channel. Merge against the latest guild-wide record, not a stale
+            # snapshot captured before awaiting create_text_channel().
+            records = self.records(guild.id)
             records[key] = {
                 "channel_id": channel.id,
                 "user_id": member.id,
@@ -297,16 +301,37 @@ class Tickets(commands.Cog):
                 await interaction.followup.send("This ticket is already closed.", ephemeral=True)
                 return
             requester = guild.get_member(entry["user_id"])
-            try:
-                if requester is not None:
-                    await interaction.channel.set_permissions(
-                        requester, view_channel=True, send_messages=False,
-                        read_message_history=True, reason="Apex ticket closed",
+            if requester is None:
+                # Do not claim a successful close when a requester is uncached:
+                # the existing user overwrite may still allow future posting.
+                try:
+                    requester = await guild.fetch_member(entry["user_id"])
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    await interaction.followup.send(
+                        "Cannot verify or lock the requester permissions. "
+                        "The ticket remains open for staff to review.",
+                        ephemeral=True,
                     )
+                    return
+            try:
+                await interaction.channel.set_permissions(
+                    requester, view_channel=True, send_messages=False,
+                    read_message_history=True, reason="Apex ticket closed",
+                )
             except discord.HTTPException:
                 log.warning("Could not lock ticket %s for requester", interaction.channel_id)
                 await interaction.followup.send(
                     "Unable to lock the ticket channel. Nothing was marked closed.",
+                    ephemeral=True,
+                )
+                return
+            # Merge after the awaited Discord permission change so concurrent
+            # tickets belonging to other users are never silently overwritten.
+            records = self.records(guild.id)
+            current = records.get(self._record_key(entry["user_id"]))
+            if not current or current.get("channel_id") != interaction.channel_id:
+                await interaction.followup.send(
+                    "Ticket state changed during closing. Please ask staff to review.",
                     ephemeral=True,
                 )
                 return
