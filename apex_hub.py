@@ -1,7 +1,7 @@
-"""Apex command hub and visual bot atlas for consensual server migrations.
+"""Functional Apex command hub: one gateway into modular Discord features.
 
-This is a navigation interface, not a replacement for existing Discord commands.
-Images are live guild bot avatars for identification, never copied branding assets.
+No third-party bot catalog or copied branding. Discord select menus organise
+features; high-impact administrative actions remain in explicit slash commands.
 """
 import discord
 from discord import app_commands
@@ -9,306 +9,232 @@ from discord.ext import commands
 
 from features import NO_MENTIONS, manager, require_owner
 
-# Names originate from the server-member screenshots supplied by the owner.
-# Labels describe migration work, not a claim of feature parity.
-BOT_TARGETS = {
-    "security": (
-        ("Security", "Security", "partial", "Anti-nuke and role security need live tests"),
-        ("Honeypot", "Honeypot", "missing", "Honeypot and suspect-join workflows need research"),
-        ("InviteLogger", "InviteLogger", "missing", "Invite attribution and re-join alerts need implementation"),
-        ("SnipeBot", "SnipeBot", "missing", "Message deletion review and retention policies need design"),
-    ),
-    "moderation": (
-        ("Dyno", "Dyno", "partial", "Basic moderation exists; automod and custom actions remain"),
-        ("YAGPDB.xyz", "YAGPDB.xyz", "partial", "Some roles and moderation exist; complex automations remain"),
-        ("EazyAutodelete", "EazyAutodelete", "missing", "Scheduled channel cleanup is not yet built"),
-        ("Vetra", "Vetra", "research", "Exact enabled functions must be audited first"),
-    ),
-    "support": (
-        ("Appy", "Appy", "missing", "Applications and review workflows need implementation"),
-        ("ModMail", "ModMail", "missing", "Private staff-mail routing needs implementation"),
-        ("Ticket Tool", "Ticket Tool", "missing", "Tickets, permissions and transcript workflows need implementation"),
-        ("Confessions", "Confessions", "research", "Verify the actual anonymous posting functions"),
-    ),
-    "community": (
-        ("Arcane", "Arcane", "partial", "Levels and rewards exist, not all Arcane features"),
-        ("GiveawayBot", "GiveawayBot", "missing", "Giveaway management needs implementation"),
-        ("Kuro’s Pet", "Kuro’s Pet", "research", "Inspect the particular pet bot's gameplay and commands"),
-        ("Conquest", "Conquest", "research", "Inspect the particular bot's purpose and commands"),
-        ("Server Tag Manager", "Server Tag Manager", "research", "Check supported Discord server-tag API features"),
-    ),
-    "media": (
-        (".fmbot", ".fmbot", "missing", "Music statistics may require an authorized external API"),
-        ("Jockie Music", "Jockie Music", "missing", "Playback depends on supported and licensed music sources"),
-        ("YouTube", "YouTube", "missing", "YouTube alerts/integrations require an authorized API"),
-        ("TTS Bot", "TTS Bot", "missing", "Text-to-speech voice features are not yet built"),
-        ("Make it a Quote", "Make it a Quote", "missing", "Quote-card generation needs implementation"),
-    ),
-    "creative": (
-        ("Discohook Utils", "Discohook Utils", "missing", "Embed composing and utility integrations remain"),
-        ("Emoji Stealer", "Emoji Stealer", "missing", "Authorized emoji import and permission checks remain"),
-        ("Tupperbox", "Tupperbox", "missing", "Roleplay proxy messaging needs consent and impersonation safeguards"),
-        ("kesarAI", "kesarAI", "research", "Review specific AI commands and their data handling"),
-        ("BibleBot", "BibleBot", "missing", "Bible references require suitable translation permissions"),
-    ),
-    "discovery": (
-        ("DISBOARD", "DISBOARD", "external", "Its public directory audience cannot be reproduced internally"),
-        ("Discodus", "Discodus", "external", "Third-party public listings are separate services"),
-        ("DiscordServers", "DiscordServers", "external", "Third-party public listings are separate services"),
-    ),
-    "backups": (
-        ("Xenon", "Xenon", "partial", "Backups and blueprints exist, with known recovery limits"),
-        ("Daedalus", "Daedalus", "research", "Determine the bot's actual duties before migration"),
-    ),
-}
-
 SECTIONS = {
-    "overview": ("Apex Command Center", "🏛️", "One place to find Apex tools."),
-    "security": ("Security & Anti-Nuke", "🛡️", "Vanity guard, audit monitoring, raids, owner response."),
-    "moderation": ("Moderation & Automation", "⚖️", "Warnings, bans, timed jail, cleanup and custom automod."),
-    "support": ("Tickets & Applications", "🎫", "Staff contact, applications and case workflows."),
-    "community": ("Community & Levels", "✨", "Onboarding, XP, roles, giveaways and games."),
-    "media": ("Music & Media", "🎵", "Audio, TTS, music statistics and publishing."),
-    "creative": ("Creative & Utility", "🧩", "Embeds, emoji, proxies, AI and reference tools."),
-    "discovery": ("Discovery & Promotion", "📡", "External listing and promotional integrations."),
-    "backups": ("Backups & Blueprints", "🗄️", "Snapshots, recovery, import and KuroGene."),
-    "atlas": ("Bot Atlas", "🧭", "Browse bot identities and migration status."),
+    "overview": ("Apex Control Center", "🏛️", "One bot. All systems."),
+    "security": ("Security", "🛡️", "Vanity protection, anti-nuke and anti-raid."),
+    "moderation": ("Moderation", "⚖️", "Warn, ban, timeout and case management."),
+    "tickets": ("Support & Tickets", "🎫", "Private staff assistance and requests."),
+    "community": ("Community", "👥", "Verification, roles, XP and events."),
+    "media": ("Music & Media", "🎵", "Music, video, voice and publishing."),
+    "backups": ("Backup & Recovery", "🗄️", "Server snapshots, templates and restoration."),
+    "utilities": ("Utilities & AI", "🧩", "Embeds, quotes, emoji and intelligent tools."),
+    "automation": ("Automation", "⚙️", "Messages, feeds, cleanup and custom rules."),
 }
 
-# The command strings below are help text, never executed by button callbacks.
-COMMANDS = {
-    "security": (
-        "/vanity status • /vanity risk • /vanity response",
-        "/antinuke setup • /antinuke status • /antinuke incidents",
-        "/raid setup • /raid status • /protection lock",
-    ),
-    "moderation": (
-        "/tools warn • /tools warnings • /tools purge",
-        "/deathnote • /deathnote_cancel • /jail add",
-        "/network_create • /globalban_add • /whitelist",
-    ),
-    "support": (
-        "Dedicated application, modmail and ticket commands: planned",
-    ),
-    "community": (
-        "/verification_setup • /roles_setup • /selfrole pick",
-        "/levels setup • /levels leaderboard • /levels reward",
-    ),
-    "media": ("Music, speech, video and quote tools: planned",),
-    "creative": ("Embed composition, roleplay proxies and AI utilities: planned",),
-    "discovery": ("External directory and listing actions remain separate services",),
-    "backups": (
-        "/backups create • /backups verify • /backup_export",
-        "/recovery_status • /blueprint create • /blueprint import",
-        "/recovery_plus history • /recovery_retry",
-    ),
+# label, state, description, commands, built-in safe button action
+FEATURES = {
+    "security": {
+        "vanity": ("Vanity Guard", "implemented", "Monitor protected vanity code, review status and optional containment.", "/vanity status • /vanity risk • /vanity response", "vanity"),
+        "antinuke": ("Anti-Nuke", "implemented", "Audit-log detection and owner alerts for destructive behavior.", "/antinuke setup • /antinuke status • /antinuke test", "antinuke"),
+        "raid": ("Raid Guard", "implemented", "Join-burst warnings and recently created account signals.", "/raid setup • /raid status • /raid test", "raid"),
+        "lockdown": ("Manual Lockdown", "implemented", "Owner-confirmed reversible server lockdown.", "/protection setup • /protection lock • /protection unlock", None),
+        "advanced": ("Advanced Containment", "planned", "Expanded anti-nuke containment with verified owner exemptions and rollback.", "Planned, not deployed", None),
+    },
+    "moderation": {
+        "warnings": ("Warnings & Purge", "implemented", "Staff warnings, warning history and channel cleanup.", "/tools warn • /tools warnings • /tools purge", None),
+        "deathnote": ("Scheduled Bans", "implemented", "Permission-checked delayed ban jobs and cancellation.", "/deathnote • /deathnote_cancel • /deathnote_list", None),
+        "jail": ("Timed Jail", "implemented", "Temporarily restrict members with configured roles.", "/jail setup • /jail add • /jail release", None),
+        "globalban": ("Ban Network", "implemented", "Opt-in connected-server ban membership and exemptions.", "/network_create • /globalban_add • /whitelist", None),
+        "automod": ("Advanced AutoMod", "planned", "Automated spam, links, flooding and content rules.", "Planned, not deployed", None),
+    },
+    "tickets": {
+        "open": ("Open Support Ticket", "implemented", "Create your own private staff-support channel.", "Also available from a public ticket panel", "open_ticket"),
+        "setup": ("Ticket Setup", "implemented", "Owner configuration for category, staff role and log channel.", "/tickets setup • /tickets panel • /tickets status", "tickets"),
+        "modmail": ("ModMail", "planned", "Private user-to-staff relay with case history.", "Planned, not deployed", None),
+        "applications": ("Applications", "planned", "Application forms, review queues and staff decisions.", "Planned, not deployed", None),
+    },
+    "community": {
+        "verification": ("Verification", "implemented", "Persistent member verification panel with challenge.", "/verification_setup • /verification_disable", None),
+        "roles": ("Self-Roles & Sticky Roles", "implemented", "Role menu and server rejoin role restoration.", "/roles_setup • /selfrole setup • /selfrole pick", None),
+        "levels": ("Levels & XP", "implemented", "XP leaderboard and role milestone rewards.", "/levels setup • /levels rank • /levels leaderboard", None),
+        "giveaways": ("Giveaways & Polls", "planned", "Auditable polls and giveaways.", "Planned, not deployed", None),
+        "roleplay": ("Roleplay Proxy", "planned", "User-authorized character identities and proxy messaging.", "Planned, not deployed", None),
+    },
+    "media": {
+        "audio": ("Music Playback", "planned", "Licensed/authorized music and supported audio controls.", "Planned, not deployed", None),
+        "fm": ("Music Statistics", "planned", "Optional last.fm account linking with consent.", "Planned, not deployed", None),
+        "tts": ("Text to Speech", "planned", "Staff-controlled speech playback in voice channels.", "Planned, not deployed", None),
+        "video": ("YouTube Notifications", "planned", "Opt-in verified channel updates.", "Planned, not deployed", None),
+    },
+    "backups": {
+        "backup": ("Recovery Backups", "implemented", "Application-owner snapshots and recovery verification.", "/backups setup • /backups create • /backups verify", "backups"),
+        "channel": ("Channel Recovery", "implemented", "Saved server structure and selective channel restoration.", "/recovery_setup • /recovery_status • /recovery_retry", None),
+        "blueprint": ("Blueprints", "implemented", "Consent-based server structure templates.", "/blueprint create • /blueprint import", None),
+        "genebank": ("KuroGene Template Library", "planned", "Versioned template catalog with safe import previews.", "Planned, not deployed", None),
+    },
+    "utilities": {
+        "embeds": ("Embed Builder", "planned", "Custom embed composition and publishing.", "Planned, not deployed", None),
+        "emoji": ("Emoji Tools", "planned", "Authorized emoji and sticker utilities.", "Planned, not deployed", None),
+        "quotes": ("Quote Images", "planned", "Render user-authorized quoted messages as images.", "Planned, not deployed", None),
+        "ai": ("Apex AI Assistance", "planned", "Human-controlled Nikra AI tools with privacy boundaries.", "Planned, not deployed", None),
+        "bible": ("Reference Tools", "planned", "Bible references using permitted translations.", "Planned, not deployed", None),
+    },
+    "automation": {
+        "chat": ("Cross-Server Chat", "implemented", "Opt-in links between public server channels.", "/chat_invite • /chat_join • /chat_leave", None),
+        "welcome": ("Welcome & Goodbye", "planned", "Configurable user join and leave messages.", "Planned, not deployed", None),
+        "replies": ("Custom Commands", "planned", "Safe owner-defined responses and rules.", "Planned, not deployed", None),
+        "cleanup": ("Auto Delete", "planned", "Scheduled retention and cleanup, opt-in per channel.", "Planned, not deployed", None),
+        "feeds": ("Notifications", "planned", "Authorized RSS/video/stream notification feeds.", "Planned, not deployed", None),
+        "discovery": ("Server Discovery", "external", "Directory reach remains on external listings such as DISBOARD.", "External service", None),
+    },
 }
 
-STATUS_TEXT = {
-    "partial": "🟡 Partial Apex functionality",
-    "missing": "⚪ Not yet implemented in Apex",
-    "research": "🔎 Requires source-bot feature audit",
-    "external": "🔗 External service, not fully replaceable",
+STATUS = {
+    "implemented": "✅ Implemented (validate on your server)",
+    "planned": "⚪ Not yet implemented",
+    "external": "🔗 External service",
 }
 
-def all_target_names():
-    return [item[0] for entries in BOT_TARGETS.values() for item in entries]
 
-
-def find_target(key, section):
-    for item in BOT_TARGETS.get(section, ()):
-        if item[0] == key:
-            return item
-    return None
-
-
-def lookup_member_avatar(guild, display_name):
-    """Use the actual installed bot's avatar, never fabricated brand artwork."""
-    expected = display_name.casefold().replace("’", "'")
-    for member in getattr(guild, "members", ()):
-        if not getattr(member, "bot", False):
-            continue
-        names = (
-            str(getattr(member, "display_name", "")),
-            str(getattr(member, "name", "")),
-            str(getattr(member, "global_name", "")),
-        )
-        if any(name.casefold().replace("’", "'") == expected for name in names):
-            avatar = getattr(member, "display_avatar", None)
-            return str(avatar.url) if avatar is not None else None
-    return None
-
-
-def build_embed(section, guild, target=None):
-    title, icon, description = SECTIONS[section]
+def feature_embed(section, feature=None, bot=None):
+    label, emoji, tagline = SECTIONS[section]
     embed = discord.Embed(
-        title=icon + "  " + title,
-        description=description,
+        title=emoji + " " + label,
+        description=tagline,
         color=discord.Color.from_rgb(187, 27, 50),
     )
+    if bot is not None and bot.user is not None:
+        embed.set_thumbnail(url=bot.user.display_avatar.url)
     if section == "overview":
         embed.add_field(
-            name="Choose a system",
-            value="Use the menu below to open Security, Moderation, Support, "
-            "Community, Media, Creative, Discovery or Backups.",
+            name="Choose your system",
+            value="Use the selector to navigate Security, Moderation, Support, "
+            "Community, Media, Backups, Utilities and Automation.",
             inline=False,
         )
         embed.add_field(
-            name="Bot Atlas",
-            value=str(len(all_target_names())) + " bot identities from your screenshots. "
-            "Open a system, then choose a bot to inspect migration coverage "
-            "and its installed avatar.",
+            name="Integrated features",
+            value="Implemented functions remain available through their slash "
+            "commands. Safe, built-in actions also appear as buttons below.",
             inline=False,
         )
         embed.add_field(
-            name="Controls",
-            value="This first version is a navigation and information hub. "
-            "It does **not** run destructive commands from a menu.",
+            name="Development rule",
+            value="Planned features are labeled clearly. Apex does not pretend "
+            "that a competitor's commands already work inside it.",
             inline=False,
         )
-    elif section == "atlas":
-        embed.add_field(
-            name="How to browse",
-            value="Pick a module using the main menu, then select a bot in "
-            "the second menu to see its coverage and live avatar.",
-            inline=False,
-        )
-        for key, (label, emoji, _) in SECTIONS.items():
-            if key not in ("overview", "atlas"):
+    else:
+        features = FEATURES[section]
+        if feature is not None:
+            name, state, description, commands, action = features[feature]
+            embed.title = emoji + " " + name
+            embed.description = description
+            embed.add_field(name="Availability", value=STATUS[state], inline=False)
+            embed.add_field(name="Commands", value=commands, inline=False)
+            if action:
                 embed.add_field(
-                    name=emoji + " " + label,
-                    value=", ".join(item[0] for item in BOT_TARGETS[key]),
+                    name="Quick action",
+                    value="Use **Run / View** below to access this feature directly.",
                     inline=False,
                 )
-    elif target:
-        name, alias, coverage, note = target
-        embed.add_field(name="Migration state", value=STATUS_TEXT[coverage], inline=False)
-        embed.add_field(name="Next work", value=note, inline=False)
-        embed.add_field(
-            name="Apex command area",
-            value="\n".join(COMMANDS[section]), inline=False,
-        )
-        avatar = lookup_member_avatar(guild, alias)
-        if avatar:
-            embed.set_thumbnail(url=avatar)
-            embed.add_field(
-                name="Visual reference",
-                value="Avatar from an installed bot in this server, shown only "
-                "to identify the migration source.",
-                inline=False,
-            )
         else:
-            embed.add_field(
-                name="Visual reference",
-                value="Avatar unavailable from the member cache. "
-                "No unofficial image has been substituted.",
-                inline=False,
-            )
-        embed.title = "🧭 " + name + " → Apex"
-    else:
-        embed.add_field(
-            name="Available / planned commands",
-            value="\n".join(COMMANDS[section]),
-            inline=False,
-        )
-        embed.add_field(
-            name="Bot identities to review",
-            value="\n".join(
-                item[0] + " | " + STATUS_TEXT[item[2]]
-                for item in BOT_TARGETS[section]
-            ),
-            inline=False,
-        )
-    embed.set_footer(
-        text="Apex development hub • Owner-only • Navigation is not feature parity"
-    )
+            for name, state, description, commands, action in features.values():
+                embed.add_field(
+                    name=name + " | " + ("✅" if state == "implemented" else "🔗" if state == "external" else "⚪"),
+                    value=description + "\n" + commands,
+                    inline=False,
+                )
+    embed.set_footer(text="APEX • One bot, modular features • Owner panel")
     return embed
 
 
-class SectionSelect(discord.ui.Select):
+class SystemSelect(discord.ui.Select):
     def __init__(self, current):
-        options = [
-            discord.SelectOption(
-                label=label, value=key, emoji=emoji,
-                description=description[:95],
-                default=key == current,
-            )
-            for key, (label, emoji, description) in SECTIONS.items()
-        ]
         super().__init__(
-            placeholder="Open an Apex system…",
-            options=options,
+            placeholder="Select an Apex system…",
+            options=[
+                discord.SelectOption(
+                    label=value[0], value=key, emoji=value[1], default=key == current,
+                    description=value[2][:100],
+                )
+                for key, value in SECTIONS.items()
+            ],
             row=0,
         )
 
     async def callback(self, interaction):
-        view = self.view
-        view.section = self.values[0]
-        view.target = None
-        view.rebuild()
+        self.view.section = self.values[0]
+        self.view.feature = None
+        self.view.rebuild()
         await interaction.response.edit_message(
-            embed=build_embed(view.section, interaction.guild), view=view
+            embed=feature_embed(self.view.section, bot=interaction.client),
+            view=self.view,
         )
 
 
-class SourceBotSelect(discord.ui.Select):
-    def __init__(self, section, current=None):
-        items = BOT_TARGETS[section]
-        options = [
-            discord.SelectOption(
-                label=item[0][:100], value=item[0], default=item[0] == current,
-                description=STATUS_TEXT[item[2]][2:][:95],
-            )
-            for item in items
-        ]
+class FeatureSelect(discord.ui.Select):
+    def __init__(self, section, selected=None):
         super().__init__(
-            placeholder="Inspect a bot and its avatar…",
-            options=options,
+            placeholder="Open a feature…",
+            options=[
+                discord.SelectOption(
+                    label=item[0][:100],
+                    value=key,
+                    description=STATUS[item[1]][2:][:100],
+                    default=key == selected,
+                )
+                for key, item in FEATURES[section].items()
+            ],
             row=1,
         )
 
     async def callback(self, interaction):
-        view = self.view
-        view.target = self.values[0]
-        view.rebuild()
+        self.view.feature = self.values[0]
+        self.view.rebuild()
         await interaction.response.edit_message(
-            embed=build_embed(
-                view.section, interaction.guild,
-                find_target(view.target, view.section),
+            embed=feature_embed(
+                self.view.section, self.view.feature, bot=interaction.client
             ),
-            view=view,
+            view=self.view,
         )
+
+
+class RunButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Run / View", emoji="▶️", style=discord.ButtonStyle.primary, row=2,
+        )
+
+    async def callback(self, interaction):
+        view = self.view
+        feature = FEATURES[view.section][view.feature]
+        action = feature[4]
+        cog = interaction.client.get_cog("ApexHub")
+        if cog is None:
+            await interaction.response.send_message(
+                "Apex control features are currently unavailable.", ephemeral=True,
+            )
+            return
+        await cog.run_quick_action(interaction, action)
 
 
 class HomeButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="Home", style=discord.ButtonStyle.secondary,
-            emoji="🏠", row=2,
+            label="Home", emoji="🏠", style=discord.ButtonStyle.secondary, row=2,
         )
 
     async def callback(self, interaction):
-        view = self.view
-        view.section = "overview"
-        view.target = None
-        view.rebuild()
+        self.view.section = "overview"
+        self.view.feature = None
+        self.view.rebuild()
         await interaction.response.edit_message(
-            embed=build_embed("overview", interaction.guild), view=view
+            embed=feature_embed("overview", bot=interaction.client),
+            view=self.view,
         )
 
 
 class CloseButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="Close", style=discord.ButtonStyle.danger,
-            row=2,
+            label="Close", style=discord.ButtonStyle.danger, row=2,
         )
 
     async def callback(self, interaction):
         self.view.stop()
         await interaction.response.edit_message(
-            content="Apex command center closed.",
-            embed=None, view=None,
+            content="Apex control center closed.", embed=None, view=None,
         )
 
 
@@ -318,44 +244,106 @@ class ApexHubView(discord.ui.View):
         self.owner_id = owner_id
         self.guild_id = guild_id
         self.section = "overview"
-        self.target = None
+        self.feature = None
         self.rebuild()
 
     def rebuild(self):
         self.clear_items()
-        self.add_item(SectionSelect(self.section))
-        if self.section in BOT_TARGETS:
-            self.add_item(SourceBotSelect(self.section, self.target))
+        self.add_item(SystemSelect(self.section))
+        if self.section in FEATURES:
+            self.add_item(FeatureSelect(self.section, self.feature))
+        if (self.feature is not None and self.section in FEATURES
+                and FEATURES[self.section][self.feature][4]):
+            self.add_item(RunButton())
         self.add_item(HomeButton())
         self.add_item(CloseButton())
 
     async def interaction_check(self, interaction):
-        allowed = (
+        ok = (
             interaction.user.id == self.owner_id
             and interaction.guild_id == self.guild_id
             and interaction.user.id == interaction.guild.owner_id
         )
-        if not allowed:
+        if not ok:
             await interaction.response.send_message(
-                "This Apex control panel belongs to the server owner who opened it.",
+                "This panel is restricted to the server owner who opened it.",
                 ephemeral=True,
             )
-        return allowed
+        return ok
 
 
 class ApexHub(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot, store):
         self.bot = bot
+        self.store = store
 
     @app_commands.command(
-        name="hub",
-        description="Open the Apex control center and bot migration atlas.",
+        name="hub", description="Open Apex's unified interactive feature control center.",
     )
     @manager
     async def hub(self, interaction: discord.Interaction):
         require_owner(interaction)
-        view = ApexHubView(interaction.user.id, interaction.guild_id)
         await interaction.response.send_message(
-            embed=build_embed("overview", interaction.guild),
-            view=view, ephemeral=True, allowed_mentions=NO_MENTIONS,
+            embed=feature_embed("overview", bot=self.bot),
+            view=ApexHubView(interaction.user.id, interaction.guild_id),
+            ephemeral=True, allowed_mentions=NO_MENTIONS,
+        )
+
+    async def run_quick_action(self, interaction, action):
+        require_owner(interaction)
+        guild = interaction.guild
+        if action == "open_ticket":
+            tickets = self.bot.get_cog("Tickets")
+            if tickets is None:
+                raise ValueError("Native ticket system is not loaded.")
+            await tickets.open_ticket(interaction)
+            return
+        if action == "vanity":
+            guard = self.bot.get_cog("VanityGuard")
+            if guard is None:
+                raise ValueError("Vanity guard is unavailable.")
+            cfg = guard.config(guild.id)
+            if not cfg.get("enabled"):
+                message = "Vanity Guard is off. Set it up with /vanity setup."
+            else:
+                live = await guard.current_code(guild)
+                message = (
+                    "Protected: discord.gg/" + cfg["code"]
+                    + "\nLive: " + ("discord.gg/" + live if live else "(unset)")
+                    + "\nResult: " + ("MATCH" if live == cfg["code"] else "MISMATCH")
+                    + "\nResponse mode: " + cfg.get("response", "alert")
+                )
+        elif action == "antinuke":
+            cfg = self.store.option(guild.id, "antinuke_config", {}) or {}
+            message = "Anti-Nuke alerts: " + ("enabled" if cfg.get("enabled") else "disabled")
+            if cfg.get("enabled"):
+                message += "\nThreshold: " + str(cfg["threshold"]) + " events in " + str(cfg["window_seconds"]) + "s"
+            message += "\nConfigure: /antinuke setup"
+        elif action == "raid":
+            cfg = self.store.option(guild.id, "raid_alert_config", {}) or {}
+            message = "Raid warnings: " + ("enabled" if cfg.get("enabled") else "disabled")
+            if cfg.get("enabled"):
+                message += "\nThreshold: " + str(cfg["threshold"]) + " joins in " + str(cfg["window_seconds"]) + "s"
+            message += "\nConfigure: /raid setup"
+        elif action == "tickets":
+            cfg = self.store.option(guild.id, "tickets_settings", {}) or {}
+            records = self.store.option(guild.id, "tickets_records", {}) or {}
+            message = (
+                "Native Apex Tickets: " + ("enabled" if cfg.get("enabled") else "disabled")
+                + "\nOpen tickets: "
+                + str(sum(record.get("status") == "open" for record in records.values()))
+                + "\nConfigure: /tickets setup • /tickets panel"
+            )
+        elif action == "backups":
+            message = (
+                "Recovery module: " + (
+                    "loaded" if self.bot.get_cog("Backups") else "unavailable"
+                )
+                + "\nUse /backups status to review verified archive coverage."
+                + "\nUse /recovery_status to review channel recovery."
+            )
+        else:
+            raise ValueError("Unknown Apex quick action.")
+        await interaction.response.send_message(
+            message, ephemeral=True, allowed_mentions=NO_MENTIONS,
         )
