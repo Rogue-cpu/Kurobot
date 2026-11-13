@@ -26,7 +26,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
-| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity enforcement`, `/vanity response`, `/vanity risk`, `/vanity quarantine_status`, `/vanity quarantine_restore`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
+| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity preapprove`, `/vanity cancel_preapproval`, `/vanity drill`, `/vanity enforcement`, `/vanity response`, `/vanity risk`, `/vanity quarantine_status`, `/vanity quarantine_restore`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
@@ -121,6 +121,22 @@ to read the code, plus View Channel and Send Messages in the alert channel.
   `/vanity quarantine_restore member:@user confirm:true` explicitly restores
   recorded roles after owner verification. **Restoring dangerous roles can
   grant Administrator again**; restoration never happens automatically.
+- **Preapproved vanity maintenance:** Only the server owner can run
+  `/vanity preapprove new_code:next-code minutes:10` before intentionally
+  changing the code in Discord settings. A preapproval is one-use, lasts 1–30
+  minutes, is bound to the current baseline, and covers **only the exact
+  proposed invite code**, not arbitrary changes. It sends a security-channel
+  notice before saving authorization. Kuro never performs the change itself.
+  When the guard observes that precise code during the valid window, it sends
+  a completion notice, updates the protected baseline, records an approved
+  incident, and never quarantines the actor for that change. Unexpected codes
+  cancel the pending preapproval and follow normal alert/enforcement behavior.
+  Expired authorizations do not bypass monitoring. The owner can revoke an
+  unconsumed authorization with `/vanity cancel_preapproval`.
+- `/vanity drill member:@test-user` lets the owner preview the eligible,
+  unmanageable and exempt roles for a hypothetical quarantine. It changes
+  **no roles, server settings, or invites**. It does not prove Discord will
+  permit a real containment action.
 - `/vanity test` safely checks alerts without touching the live code.
   `/vanity status` reads the current code. If a legitimate owner change occurs,
   `/vanity approve` sets the **current** code as the new protected baseline.
