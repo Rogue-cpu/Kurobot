@@ -15,7 +15,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from features import NO_MENTIONS, manager, require_owner
-from vanity_containment import VanityContainment
+from vanity_containment import VanityContainment, dangerous_role
 
 log = logging.getLogger("kuro.vanity")
 
@@ -436,8 +436,7 @@ class VanityGuard(commands.Cog):
         additions = [
             role for role in after.roles
             if role.id not in old_roles
-            and (role.permissions.administrator or role.permissions.manage_guild
-                 or role.permissions.manage_roles)
+            and dangerous_role(role)
         ]
         if not additions:
             return
