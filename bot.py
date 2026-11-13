@@ -45,6 +45,8 @@ class Kuro(commands.Bot):
         await self.add_cog(AntiNuke(self, store))
         from raid_guard import RaidGuard
         await self.add_cog(RaidGuard(self, store))
+        from apex import Apex
+        await self.add_cog(Apex(self, store))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
