@@ -13,7 +13,7 @@ from features import NO_MENTIONS, manager, require_owner
 # Labels describe migration work, not a claim of feature parity.
 BOT_TARGETS = {
     "security": (
-        (".Security", "Security", "partial", "Anti-nuke and role security need live tests"),
+        ("Security", "Security", "partial", "Anti-nuke and role security need live tests"),
         ("Honeypot", "Honeypot", "missing", "Honeypot and suspect-join workflows need research"),
         ("InviteLogger", "InviteLogger", "missing", "Invite attribution and re-join alerts need implementation"),
         ("SnipeBot", "SnipeBot", "missing", "Message deletion review and retention policies need design"),
