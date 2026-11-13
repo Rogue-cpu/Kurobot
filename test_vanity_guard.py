@@ -89,6 +89,28 @@ class VanityGuardTests(unittest.IsolatedAsyncioTestCase):
         self.guard.timeout_actor.assert_not_called()
         self.assertEqual(self.store.option(1, "vanity_guard")["last_seen"], "original")
 
+    async def test_privilege_grant_event_warns_owner(self):
+        role = NS(id=44, permissions=NS(
+            administrator=True, manage_guild=False, manage_roles=False,
+        ))
+        before = NS(guild=self.guild, roles=[])
+        after = NS(guild=self.guild, id=123, roles=[role])
+        self.guard.containment.uphold = AsyncMock(return_value=None)
+        self.guard.warn_owner = AsyncMock()
+        await self.guard.on_member_update(before, after)
+        self.guard.warn_owner.assert_awaited_once()
+        self.guard.containment.uphold.assert_awaited_once()
+
+    async def test_role_permission_escalation_warns_owner(self):
+        before = NS(permissions=NS(administrator=False, manage_guild=False))
+        after = NS(
+            guild=self.guild, id=44, name="Moderators",
+            permissions=NS(administrator=False, manage_guild=True),
+        )
+        self.guard.warn_owner = AsyncMock()
+        await self.guard.on_guild_role_update(before, after)
+        self.guard.warn_owner.assert_awaited_once()
+
     async def test_owner_cannot_be_timed_out(self):
         self.assertEqual(
             await self.guard.timeout_actor(self.guild, 5, 10),
