@@ -22,4 +22,4 @@ jobs:
       - name: Compile Python source
         run: python -m compileall -q .
       - name: Run unit tests
-        run: python -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard -q
+        run: python -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub test_tickets test_apex_matrix -q

@@ -4,11 +4,48 @@ A standalone Discord bot for Kuro, hosted on Railway, separate from Synapse.
 
 New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open the [printable guide](docs/Kuro%20Beginner%20Guide.html) locally in your browser. The guide explains roles, setup commands, and what to expect after a channel deletion.
 
+## Complete replacement coverage
+
+Apex tracks all 32 source bots in [its capability ledger](docs/apex_feature_matrix.json)
+and [feature coverage plan](docs/APEX_COVERAGE_PLAN.md). Existing capabilities
+are reused; missing behaviors are added to their native modules. No source
+bot is marked fully replaced until its in-use workflows are proven in a
+controlled server. External listing audiences are a distinct dependency.
+
+## Apex unified functional command center
+
+Use `/hub` as the server owner to open an ephemeral menu with Security,
+Moderation, Tickets, Community, Media, Backups, Utilities and Automation.
+Each section leads to specific **Apex functions**, not a catalog of competitors.
+
+The hub displays implemented vs planned features and their real slash commands.
+Some safe features have functioning `Run / View` actions (vanity status,
+anti-nuke and raid configuration, ticket creation, ticket status, backup
+availability). Dangerous operations require explicit, permission-checked
+commands and cannot be triggered by browsing menus.
+
+### Native support tickets
+
+Apex has an initial native ticket module. The server owner configures
+`/tickets setup` with the ticket category, staff role and log channel, then
+uses `/tickets panel` to publish a persistent ticket-opening button.
+A member can open a private text channel visible to the requester, selected
+staff, Kuro and Discord administrators, and use a persistent close button.
+Closing makes the requester read-only, retains the conversation, and records
+the closure. No automatic transcript download or channel deletion occurs.
+Use `/tickets status` and `/tickets disable` to manage the module.
+
+The existing system does not yet duplicate premium Ticket Tool forms,
+assignments, DM-based ModMail or transcript exports. All new modules start
+disabled and require explicit owner setup. Existing features remain intact.
+
 ## Commands
 
 | Feature | Commands |
 | --- | --- |
 | Connection and configuration | `/ping`, `/features_status` |
+| Apex functional command center | `/hub` (owner feature menu), `/apex inventory`, `/apex readiness` |
+| Private support tickets | `/tickets setup`, `/tickets panel`, `/tickets status`, `/tickets disable` |
 | Beginner help | `/guide` |
 | Application-owner recovery bundles | `/backups setup`, `/backups create`, `/backups status`, `/backups verify` |
 | Scheduled bans | `/deathnote`, `/deathnote_cancel`, `/deathnote_list` |
@@ -227,7 +264,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub test_tickets test_apex_matrix -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
