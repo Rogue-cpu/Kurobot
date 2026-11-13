@@ -6,6 +6,7 @@ attributed, moderatable actor. It never tries unsupported vanity edits.
 """
 import asyncio
 import logging
+import re
 import time
 from datetime import timedelta
 from typing import Literal
@@ -40,6 +41,23 @@ class VanityGuard(commands.Cog):
 
     def config(self, guild_id):
         return self.store.option(guild_id, "vanity_guard", {}) or {}
+
+    @staticmethod
+    def valid_preapproval(config, now=None):
+        """A one-use owner authorization is valid only for this exact baseline."""
+        approval = config.get("preapproval")
+        if not isinstance(approval, dict):
+            return None
+        if approval.get("baseline") != config.get("code"):
+            return None
+        if int(approval.get("expires_at", 0)) <= int(time.time() if now is None else now):
+            return None
+        return approval
+
+    def append_incident(self, guild_id, event):
+        events = self.store.option(guild_id, "vanity_incidents", []) or []
+        events.append(event)
+        self.store.set_option(guild_id, "vanity_incidents", events[-25:])
 
     async def current_code(self, guild):
         """Read actual live vanity state; fail closed if Discord denies access."""
@@ -101,12 +119,115 @@ class VanityGuard(commands.Cog):
         code = await self.current_code(interaction.guild)
         expected = config["code"]
         state = "MATCH" if code == expected else "MISMATCH: owner action required"
+        approval = self.valid_preapproval(config)
+        preapproval_display = (
+            "discord.gg/" + approval["code"]
+            + " through <t:" + str(approval["expires_at"]) + ":R>"
+            if approval else "none"
+        )
         await interaction.response.send_message(
             "Vanity guard: " + state + "\nProtected: discord.gg/" + expected
             + "\nCurrent: " + ("discord.gg/" + code if code else "(unset)")
             + "\nAlert channel: <#" + str(config["channel"]) + ">"
             + "\nResponse: " + config.get("response", "timeout" if config.get("timeout_minutes", 0) else "alert")
-            + "\nAutomatic timeout setting: " + str(config.get("timeout_minutes", 0)) + " minutes.",
+            + "\nAutomatic timeout setting: " + str(config.get("timeout_minutes", 0)) + " minutes."
+            + "\nOwner-preapproved change: " + preapproval_display,
+            ephemeral=True, allowed_mentions=NO_MENTIONS,
+        )
+
+    @vanity.command(name="preapprove", description="Owner-only: permit one exact custom invite change for up to 30 minutes.")
+    @manager
+    async def preapprove(
+        self, interaction: discord.Interaction,
+        new_code: app_commands.Range[str, 2, 32],
+        minutes: app_commands.Range[int, 1, 30] = 10,
+    ):
+        require_owner(interaction)
+        config = self.config(interaction.guild_id)
+        if not config.get("enabled"):
+            raise ValueError("Enable vanity protection with /vanity setup first.")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{2,32}", new_code):
+            raise ValueError("Enter only the proposed invite code, using letters, digits, - or _.")
+        actual = await self.current_code(interaction.guild)
+        if actual != config["code"]:
+            raise ValueError("The live code already differs from the protected one. Resolve this before preapproving.")
+        if new_code.casefold() == config["code"].casefold():
+            raise ValueError("That code is already the protected vanity.")
+        channel = interaction.guild.get_channel(config["channel"])
+        if not channel:
+            raise ValueError("The security alert channel is missing. Reconfigure /vanity setup.")
+        expires = int(time.time()) + minutes * 60
+        approval = {
+            "code": new_code,
+            "baseline": config["code"],
+            "expires_at": expires,
+            "approved_by": interaction.user.id,
+        }
+        try:
+            await channel.send(
+                "🛠️ **KURO VANITY MAINTENANCE PREAPPROVED**\\n"
+                "Owner authorized one change from discord.gg/" + config["code"]
+                + " to discord.gg/" + new_code
+                + " before <t:" + str(expires) + ":f>. Other changes remain suspicious. "
+                "No vanity URL was changed by Kuro.",
+                allowed_mentions=NO_MENTIONS,
+            )
+        except discord.HTTPException as exc:
+            raise ValueError("Kuro could not notify the security channel. No preapproval was saved.") from exc
+        config["preapproval"] = approval
+        self.store.set_option(interaction.guild_id, "vanity_guard", config)
+        await interaction.response.send_message(
+            "One-time approval saved for discord.gg/" + new_code
+            + " until <t:" + str(expires) + ":R>. "
+            "You must make the change yourself in Discord Server Settings. "
+            "Any other code remains unapproved.",
+            ephemeral=True, allowed_mentions=NO_MENTIONS,
+        )
+
+    @vanity.command(name="cancel_preapproval", description="Owner-only: cancel the pending one-time vanity change.")
+    @manager
+    async def cancel_preapproval(self, interaction: discord.Interaction):
+        require_owner(interaction)
+        config = self.config(interaction.guild_id)
+        approval = config.pop("preapproval", None)
+        self.store.set_option(interaction.guild_id, "vanity_guard", config)
+        if approval and config.get("enabled"):
+            channel = interaction.guild.get_channel(config["channel"])
+            if channel:
+                try:
+                    await channel.send(
+                        "🛠️ Kuro vanity maintenance preapproval cancelled by server owner.",
+                        allowed_mentions=NO_MENTIONS,
+                    )
+                except discord.HTTPException:
+                    log.warning("Could not send vanity preapproval cancellation in %s", interaction.guild_id)
+        await interaction.response.send_message(
+            "Pending vanity preapproval cancelled." if approval else "No pending preapproval.",
+            ephemeral=True,
+        )
+
+    @vanity.command(name="drill", description="Owner-only: preview quarantine actions without changing roles or vanity.")
+    @manager
+    async def drill(self, interaction: discord.Interaction, member: discord.Member):
+        require_owner(interaction)
+        guild = interaction.guild
+        privileged = [role for role in member.roles if dangerous_role(role)]
+        removable = [
+            role for role in privileged
+            if not role.is_default() and not role.managed and role < guild.me.top_role
+        ]
+        blocked = [role for role in privileged if role not in removable]
+        exempt = (
+            member.id in (guild.owner_id, self.bot.user.id)
+            or member.bot or member.top_role >= guild.me.top_role
+        )
+        await interaction.response.send_message(
+            "DRY RUN ONLY: no roles, invites or settings were changed.\\n"
+            + "Member ID: " + str(member.id)
+            + "\\nWould be exempt: " + str(exempt)
+            + "\\nEligible dangerous role IDs: " + (", ".join(str(role.id) for role in removable) or "none")
+            + "\\nUnmanageable dangerous role IDs: " + (", ".join(str(role.id) for role in blocked) or "none")
+            + "\\nNo action has been taken.",
             ephemeral=True, allowed_mentions=NO_MENTIONS,
         )
 
@@ -213,6 +334,7 @@ class VanityGuard(commands.Cog):
             raise ValueError("There is no live vanity invite to approve. Restore it in Discord first.")
         config["code"] = code
         config["last_seen"] = code
+        config.pop("preapproval", None)
         self.store.set_option(interaction.guild_id, "vanity_guard", config)
         await interaction.response.send_message(
             "Owner-approved vanity baseline: discord.gg/" + code
@@ -225,6 +347,7 @@ class VanityGuard(commands.Cog):
         require_owner(interaction)
         config = self.config(interaction.guild_id)
         config["enabled"] = False
+        config.pop("preapproval", None)
         self.store.set_option(interaction.guild_id, "vanity_guard", config)
         await interaction.response.send_message("Vanity guard disabled.", ephemeral=True)
 
@@ -330,6 +453,38 @@ class VanityGuard(commands.Cog):
                     except discord.HTTPException:
                         log.warning("Vanity restoration alert failed for %s", guild.id)
                 return
+            # An owner may preapprove exactly one *specific* code for a short
+            # window. On an exact match, update the baseline without sanctions.
+            # A different code cancels that approval and is investigated normally.
+            approval = self.valid_preapproval(config)
+            if approval and observed and approval["code"].casefold() == observed.casefold():
+                if not channel:
+                    log.error("Approved vanity change in %s; alert channel missing", guild.id)
+                    return
+                try:
+                    await channel.send(
+                        "✅ **KURO OWNER-PREAPPROVED VANITY CHANGE**\\n"
+                        "Protected code updated from discord.gg/" + expected
+                        + " to discord.gg/" + observed + ". "
+                        "No sanction was issued. Preapproval has been consumed.",
+                        allowed_mentions=NO_MENTIONS,
+                    )
+                except discord.HTTPException:
+                    log.warning("Cannot notify approved vanity update in %s; baseline unchanged", guild.id)
+                    return
+                config["code"] = observed
+                config["last_seen"] = observed
+                config.pop("preapproval", None)
+                self.store.set_option(guild.id, "vanity_guard", config)
+                self.append_incident(guild.id, {
+                    "at": int(time.time()), "previous": expected,
+                    "current": observed, "actor": approval["approved_by"],
+                    "outcome": "owner preapproved (no enforcement)",
+                })
+                return
+            if config.get("preapproval"):
+                config.pop("preapproval", None)
+                self.store.set_option(guild.id, "vanity_guard", config)
             # Polling can discover offline changes. Never punish retroactively:
             # enforce only for a live gateway event with an exact audit diff.
             actor = None
@@ -337,6 +492,13 @@ class VanityGuard(commands.Cog):
             if source == "gateway":
                 await asyncio.sleep(1.5)
                 actor = await self.match_audit_actor(guild, previous_seen, observed)
+                # Owner may have accepted/reconfigured the code while the audit
+                # lookup was pending. Never enforce using stale settings.
+                fresh = self.config(guild.id)
+                if (not fresh.get("enabled") or fresh.get("code") != expected
+                        or fresh.get("last_seen") == observed):
+                    return
+                config = fresh
             mode = config.get("response", "timeout" if config.get("timeout_minutes", 0) else "alert")
             outcome = "pending " + mode if actor and mode != "alert" else "alert only"
             owner = guild.owner_id
@@ -381,12 +543,10 @@ class VanityGuard(commands.Cog):
                     log.warning("Could not send vanity enforcement result in %s", guild.id)
             config["last_seen"] = observed
             self.store.set_option(guild.id, "vanity_guard", config)
-            events = self.store.option(guild.id, "vanity_incidents", []) or []
-            events.append({
+            self.append_incident(guild.id, {
                 "at": int(time.time()), "previous": expected,
                 "current": observed, "actor": actor, "outcome": outcome,
             })
-            self.store.set_option(guild.id, "vanity_incidents", events[-25:])
 
     async def warn_owner(self, guild, detail):
         """Alert about elevated permission grants, without assuming malicious intent."""
