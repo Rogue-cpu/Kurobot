@@ -26,6 +26,8 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
+| Audit-log anti-nuke warning system | `/antinuke setup`, `/antinuke status`, `/antinuke test`, `/antinuke incidents`, `/antinuke disable` |
+| Join-burst raid warnings | `/raid setup`, `/raid status`, `/raid test`, `/raid disable` |
 | Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity preapprove`, `/vanity cancel_preapproval`, `/vanity drill`, `/vanity enforcement`, `/vanity response`, `/vanity risk`, `/vanity quarantine_status`, `/vanity quarantine_restore`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
@@ -79,6 +81,57 @@ Backups capture **new human messages in text/announcement channels and public th
 After channel recovery, Kuro replays the latest 50 saved messages as labelled archive copies and reuploads locally saved attachments. Full retained text/embed/reference data can be retrieved with `/backup_export`, which requires Manage Server plus access to the channel and its history. Saved attachment files are stored on the volume. Recovered verification channels get a new live button; shared-chat and Deathnote channel settings follow their replacement channels.
 
 **Disable recovery before intentionally deleting channels.** Backups remain when recovery is disabled. Optional `/recovery_plus setup` adds deleted-role definitions and public forum/thread recovery. Ordinary role assignments are restored in small batches; sensitive assignments need owner review. `/recovery_plus history` captures existing accessible history and archived public threads within its stated limits. Private threads, original message IDs/authorship, reactions, pins, invites, and every specialized channel setting are not restored. Kuro does not punish attackers or operate without its permissions. Recovery restores deleted channels; it does not automatically roll back every edit to an existing channel. No server-destruction triggers or bot self-replication are implemented; owner-controlled blueprints copy structure into existing consenting destination servers.
+
+### Anti-nuke alert foundation
+
+Anti-nuke monitoring is **off by default** in every server. Only the owner can
+run `/antinuke setup channel:#security-alerts threshold:4 window_seconds:60`
+to enable it. It requires the **View Audit Log** permission and Discord's
+`moderation` gateway intent, which this release enables. The alert channel
+must allow Kuro to view and send messages.
+
+- Watches directly for audit-log events indicating channel/role destruction,
+  mass bans/kicks, structural creation floods, webhook creation/deletion,
+  and new bot additions. Counts are per actor **within each consenting server**,
+  using actual audit entry IDs and actor IDs rather than guessing from
+  unrelated gateway events.
+- The configurable threshold defaults to **4 audited actions in 60 seconds**,
+  with a 30–300 second window and 2–20 actions allowed. Sensitive single
+  events (new bot or webhook) immediately alert the owner.
+- Alert messages include actor and target IDs, event type and a recent count.
+  No member roles, permissions, bans, channels or settings are modified.
+  Review the audit log and use Kuro's existing `/protection lock` manually if
+  an emergency requires it.
+- `/antinuke test` sends a harmless notice. `/antinuke incidents` shows the
+  latest eight logged security events, and `/antinuke status` reports settings.
+  `/antinuke disable` stops monitoring while retaining records.
+- Stores at most 200 recent events per guild, prunes records over 24 hours
+  when events arrive, ignores duplicate audit entries and applies a per-actor
+  alert cooldown. The bot's own recovery operations are excluded.
+- **Important:** this is an early warning system, **not yet full Wick
+  anti-nuke parity**. It cannot guarantee uninterrupted delivery, stop
+  destructive actions before they occur, identify an actor when Discord
+  provides no audit record, or reverse all changes. Quarantine automation,
+  anti-raid verification, webhook policies and finer-grained permission
+  containment require separate review and live testing.
+
+### Raid warning foundation
+
+The raid monitor is also **off by default**. The server owner enables it with
+`/raid setup channel:#security-alerts threshold:8 window_seconds:60`.
+Kuro needs the Server Members intent (already enabled for its existing member
+features) and permission to send in the selected channel.
+
+- Counts unique non-bot member joins inside a configurable 30–300 second window.
+  Default: 8 joins per 60 seconds. It includes how many of those accounts
+  were created less than seven days ago as a **review signal**, not evidence
+  that they are malicious or alternate accounts.
+- Alerts the owner with the join burst count, stores a bounded and temporary
+  per-server record of joins, and suppresses repeat notices within one window.
+- `/raid test` is a harmless alert delivery check. `/raid status` verifies the
+  settings and `/raid disable` stops the monitoring.
+- **No automatic kicks, bans, permission changes or lockdown** in this release.
+  Rapid legitimate activity can resemble a raid, so operator review comes first.
 
 ### Custom vanity invite protection
 
@@ -174,7 +227,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
