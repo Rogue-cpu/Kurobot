@@ -168,9 +168,9 @@ class VanityGuard(commands.Cog):
             for role in roles[-20:]
         ]
         await interaction.response.send_message(
-            "Roles with Administrator or Manage Server (max 20 shown):\\n"
-            + ("\\n".join(lines) if lines else "None found.")
-            + "\\nThis audits server-level role permissions, not administrator account compromise.",
+            "Roles with Administrator or Manage Server (max 20 shown):\n"
+            + ("\n".join(lines) if lines else "None found.")
+            + "\nThis audits server-level role permissions, not administrator account compromise.",
             ephemeral=True, allowed_mentions=NO_MENTIONS,
         )
 
@@ -181,8 +181,8 @@ class VanityGuard(commands.Cog):
         record = self.containment.record(interaction.guild_id, member.id)
         await interaction.response.send_message(
             ("Status: " + record.get("status", "not recorded")
-             + "\\nRemoved dangerous role IDs: " + (", ".join(map(str, record.get("roles", []))) or "none")
-             + "\\nReason: " + record.get("reason", "n/a")),
+             + "\nRemoved dangerous role IDs: " + (", ".join(map(str, record.get("roles", []))) or "none")
+             + "\nReason: " + record.get("reason", "n/a")),
             ephemeral=True, allowed_mentions=NO_MENTIONS,
         )
 
@@ -387,6 +387,66 @@ class VanityGuard(commands.Cog):
                 "current": observed, "actor": actor, "outcome": outcome,
             })
             self.store.set_option(guild.id, "vanity_incidents", events[-25:])
+
+    async def warn_owner(self, guild, detail):
+        """Alert about elevated permission grants, without assuming malicious intent."""
+        config = self.config(guild.id)
+        if not config.get("enabled"):
+            return
+        channel = guild.get_channel(config["channel"])
+        if not channel:
+            log.warning("Vanity guard permission alert channel missing in %s", guild.id)
+            return
+        try:
+            await channel.send(
+                "⚠️ **KURO PRIVILEGE WARNING**\n" + detail
+                + "\n<@" + str(guild.owner_id) + "> review the change and audit logs.",
+                allowed_mentions=discord.AllowedMentions(
+                    users=[discord.Object(id=guild.owner_id)],
+                ),
+            )
+        except discord.HTTPException:
+            log.warning("Privilege alert delivery failed in %s", guild.id)
+
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role):
+        if role.permissions.administrator or role.permissions.manage_guild:
+            await self.warn_owner(
+                role.guild, "New role **" + discord.utils.escape_markdown(role.name[:80])
+                + "** (" + str(role.id) + ") can change server settings.",
+            )
+
+    @commands.Cog.listener()
+    async def on_guild_role_update(self, before, after):
+        elevated = (
+            (not before.permissions.administrator and after.permissions.administrator)
+            or (not before.permissions.manage_guild and after.permissions.manage_guild)
+        )
+        if elevated:
+            await self.warn_owner(
+                after.guild, "Role **" + discord.utils.escape_markdown(after.name[:80])
+                + "** (" + str(after.id) + ") gained Administrator or Manage Server.",
+            )
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if not self.config(after.guild.id).get("enabled"):
+            return
+        old_roles = {role.id for role in before.roles}
+        additions = [
+            role for role in after.roles
+            if role.id not in old_roles
+            and (role.permissions.administrator or role.permissions.manage_guild
+                 or role.permissions.manage_roles)
+        ]
+        if not additions:
+            return
+        hold = await self.containment.uphold(after.guild, after, additions)
+        await self.warn_owner(
+            after.guild, "Member ID " + str(after.id) + " received dangerous role(s): "
+            + ", ".join(str(role.id) for role in additions[:10]) + ". "
+            + (hold or "No automatic enforcement; review whether this grant is intended."),
+        )
 
     @commands.Cog.listener()
     async def on_guild_update(self, before, after):
