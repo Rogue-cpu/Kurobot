@@ -69,6 +69,9 @@ class VanityGuard(commands.Cog):
         code = await self.current_code(guild)
         if not code:
             raise ValueError("This server must have an active custom invite before it can be protected.")
+        previous = self.config(guild.id)
+        if previous.get("enabled") and previous.get("code") != code:
+            raise ValueError("The current vanity differs from the protected baseline. Restore it in Discord or explicitly use /vanity approve.")
         self.store.set_option(guild.id, "vanity_guard", {
             "enabled": True,
             "code": code,
@@ -100,6 +103,28 @@ class VanityGuard(commands.Cog):
             + "\nAlert channel: <#" + str(config["channel"]) + ">"
             + "\nAutomatic timeout: " + str(config.get("timeout_minutes", 0)) + " minutes.",
             ephemeral=True, allowed_mentions=NO_MENTIONS,
+        )
+
+    @vanity.command(name="enforcement", description="Owner-only: set minutes of verified-changer timeout, or 0 for alerts.")
+    @manager
+    async def enforcement(
+        self, interaction: discord.Interaction,
+        timeout_minutes: app_commands.Range[int, 0, 60],
+    ):
+        require_owner(interaction)
+        config = self.config(interaction.guild_id)
+        if not config.get("enabled"):
+            raise ValueError("Enable vanity protection first.")
+        perms = interaction.guild.me.guild_permissions
+        if timeout_minutes and not (perms.view_audit_log and perms.moderate_members):
+            raise ValueError("Automatic timeouts require View Audit Log and Moderate Members.")
+        config["timeout_minutes"] = timeout_minutes
+        self.store.set_option(interaction.guild_id, "vanity_guard", config)
+        await interaction.response.send_message(
+            "Vanity guard enforcement: " + (
+                str(timeout_minutes) + "-minute timeout for an exactly audit-verified, "
+                "moderatable changer." if timeout_minutes else "alert-only."
+            ), ephemeral=True,
         )
 
     @vanity.command(name="approve", description="Owner-only: accept the current invite as the new protected code.")
@@ -237,11 +262,9 @@ class VanityGuard(commands.Cog):
             if source == "gateway":
                 await asyncio.sleep(1.5)  # Audit log may lag the gateway event.
                 actor = await self.match_audit_actor(guild, expected, observed)
-            outcome = "alert only"
-            if actor and source == "gateway":
-                outcome = await self.timeout_actor(
-                    guild, actor, config.get("timeout_minutes", 0),
-                )
+            # Report before enforcement; a failed/missing alert channel must not
+            # cause silent punitive actions.
+            outcome = "pending review" if actor and config.get("timeout_minutes", 0) else "alert only"
             owner = guild.owner_id
             message = (
                 "🚨 **KURO VANITY GUARD: UNAPPROVED CHANGE**\n"
@@ -263,6 +286,17 @@ class VanityGuard(commands.Cog):
             except discord.HTTPException:
                 log.error("Could not send vanity alert in %s", guild.id)
                 return
+            if actor and source == "gateway" and config.get("timeout_minutes", 0):
+                outcome = await self.timeout_actor(
+                    guild, actor, config["timeout_minutes"],
+                )
+                try:
+                    await channel.send(
+                        "Kuro vanity enforcement result for user ID " + str(actor)
+                        + ": " + outcome, allowed_mentions=NO_MENTIONS,
+                    )
+                except discord.HTTPException:
+                    log.warning("Could not send vanity enforcement result in %s", guild.id)
             config["last_seen"] = observed
             self.store.set_option(guild.id, "vanity_guard", config)
             events = self.store.option(guild.id, "vanity_incidents", []) or []
