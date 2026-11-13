@@ -1,0 +1,392 @@
+{
+  "schema": 1,
+  "title": "Apex functional replacement coverage",
+  "scope": "Thirty-two Discord bot identities supplied in owner screenshots, not an assertion of complete function parity",
+  "updated": "2026-11-13",
+  "rules": [
+    "No existing Apex feature is recreated unless a substantive parity gap exists",
+    "implemented denotes source code present, NOT confirmed production feature parity",
+    "Each source bot needs official documentation and an installed-server command/settings audit before retirement",
+    "Each gap must be developed, tested, and owner-approved in a disposable server before production cutover",
+    "External directory audience and proprietary external ecosystems cannot be replaced by native code alone",
+    "No copyrighted logo ingestion or presentation as Apex-owned branding"
+  ],
+  "sources": [
+    {
+      "bot": ".fmbot",
+      "area": "Media",
+      "implemented": [],
+      "gaps": [
+        "Last.fm account linking and scrobbles",
+        "music listening statistics and charts",
+        "artist/album rankings and crowns"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Appy",
+      "area": "Applications",
+      "implemented": [],
+      "gaps": [
+        "application form builder",
+        "review queue",
+        "staff decisions and application history"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Arcane",
+      "area": "Community",
+      "implemented": [
+        "XP accumulation and levels",
+        "leaderboards",
+        "role level rewards"
+      ],
+      "gaps": [
+        "advanced level configuration and migration",
+        "Arcane-specific premium modules and settings"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "BibleBot",
+      "area": "Reference",
+      "implemented": [],
+      "gaps": [
+        "scripture lookup",
+        "translation selector and licensing",
+        "verse-of-the-day features"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Confessions",
+      "area": "Community",
+      "implemented": [],
+      "gaps": [
+        "anonymous confession posting",
+        "moderation review and abuse safeguards"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Conquest",
+      "area": "Games",
+      "implemented": [],
+      "gaps": [
+        "verify game's command set and economy",
+        "supported mini-game interactions"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Daedalus",
+      "area": "Unknown",
+      "implemented": [],
+      "gaps": [
+        "audit installed bot and enabled commands before specifying replacement"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "DISBOARD",
+      "area": "Directory",
+      "implemented": [],
+      "gaps": [
+        "public third-party directory audience and bump workflow cannot be duplicated internally"
+      ],
+      "status": "external"
+    },
+    {
+      "bot": "Discodus",
+      "area": "Directory",
+      "implemented": [],
+      "gaps": [
+        "external listing audience and promotional integration"
+      ],
+      "status": "external"
+    },
+    {
+      "bot": "DiscordServers",
+      "area": "Directory",
+      "implemented": [],
+      "gaps": [
+        "external listing audience and promotional integration"
+      ],
+      "status": "external"
+    },
+    {
+      "bot": "Dyno",
+      "area": "Moderation",
+      "implemented": [
+        "warnings and warning history",
+        "recent-message purge",
+        "basic roles",
+        "manual reversible lockdown"
+      ],
+      "gaps": [
+        "full configurable AutoMod",
+        "custom commands and autoresponders",
+        "timed auto-messages and reminders",
+        "audit-action dashboard and settings logs",
+        "advanced automations"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "EazyAutodelete",
+      "area": "Automation",
+      "implemented": [],
+      "gaps": [
+        "scheduled message deletion filters",
+        "per-channel cleanup rules and exemptions",
+        "safety preview before deleting"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "GiveawayBot",
+      "area": "Community",
+      "implemented": [],
+      "gaps": [
+        "giveaway setup and timers",
+        "entry conditions and audits",
+        "winner selection and rerolls"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Jockie Music",
+      "area": "Media",
+      "implemented": [],
+      "gaps": [
+        "authorized audio playback and voice control",
+        "playlists and queue management",
+        "license and API constraints"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "kesarAI",
+      "area": "AI",
+      "implemented": [],
+      "gaps": [
+        "audit AI commands, models and privacy policies",
+        "owner-approved assistant functionality"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Kuro’s Pet",
+      "area": "Games",
+      "implemented": [],
+      "gaps": [
+        "audit Carl.gg pet bot features",
+        "pet economy and gameplay"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Make it a Quote",
+      "area": "Creative",
+      "implemented": [],
+      "gaps": [
+        "render user-authorized message as quote image",
+        "permission and privacy controls",
+        "image styling and attribution"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "ModMail",
+      "area": "Support",
+      "implemented": [
+        "native private support ticket channels (development)"
+      ],
+      "gaps": [
+        "DM-to-staff relay",
+        "thread/case routing and conversation history",
+        "staff anonymity and escalation"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "Security",
+      "area": "Security",
+      "implemented": [
+        "vanity alerts and optional role quarantine",
+        "anti-nuke audit alerts (development)",
+        "join burst signals (development)"
+      ],
+      "gaps": [
+        "full security-bot command audit",
+        "anti-raid join gate and policy",
+        "reversible anti-nuke containment",
+        "permission tamper response",
+        "real server trial"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "Server Tag Manager",
+      "area": "Community",
+      "implemented": [],
+      "gaps": [
+        "verify platform API supports required tag management",
+        "audit actual bot commands"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "Ticket Tool",
+      "area": "Support",
+      "implemented": [
+        "native private ticket opening/closing (development)"
+      ],
+      "gaps": [
+        "forms and panels",
+        "staff assignment and ownership",
+        "transcript export",
+        "ticket SLA, tags and surveys"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "Tupperbox",
+      "area": "Roleplay",
+      "implemented": [],
+      "gaps": [
+        "character identity registration and groups",
+        "proxy messaging and autoproxy",
+        "edit/delete own proxy messages",
+        "anti-impersonation protections"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Vetra",
+      "area": "Unknown",
+      "implemented": [],
+      "gaps": [
+        "audit installed bot and enabled commands before specifying replacement"
+      ],
+      "status": "needs_research"
+    },
+    {
+      "bot": "YAGPDB.xyz",
+      "area": "Moderation",
+      "implemented": [
+        "warnings and purge",
+        "self assignable roles (basic)",
+        "autoroles",
+        "cross-server chat (separate)"
+      ],
+      "gaps": [
+        "complex custom commands",
+        "regex and configurable AutoMod",
+        "reaction role groups and timed roles",
+        "YouTube/Reddit/stream notifications",
+        "detailed moderation dashboards"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "Discohook Utils",
+      "area": "Creative",
+      "implemented": [],
+      "gaps": [
+        "embed building and preview",
+        "message/webhook authoring with authorization",
+        "templates and saved drafts"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Emoji Stealer",
+      "area": "Creative",
+      "implemented": [],
+      "gaps": [
+        "authorized emoji and sticker import",
+        "media validation and permission checks",
+        "bulk preview and rate limiting"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Honeypot",
+      "area": "Security",
+      "implemented": [
+        "some verification review signals"
+      ],
+      "gaps": [
+        "consensual server honeypot setup",
+        "verified suspicious bot/raid workflows",
+        "false-positive handling"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "InviteLogger",
+      "area": "Analytics",
+      "implemented": [],
+      "gaps": [
+        "new invite tracking and attribution",
+        "invite counts, leaderboard, join/leave logs",
+        "referral/bonus and fake invite review",
+        "invite statistics export"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "SnipeBot",
+      "area": "Moderation",
+      "implemented": [
+        "saved messages for enabled recovery channels, subject to retention"
+      ],
+      "gaps": [
+        "explicit deleted-message review command",
+        "privacy and channel-scoped retention",
+        "edit history and safe mod-only access"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "TTS Bot",
+      "area": "Media",
+      "implemented": [],
+      "gaps": [
+        "voice channel text-to-speech and permission checks",
+        "voice and language controls"
+      ],
+      "status": "missing"
+    },
+    {
+      "bot": "Xenon",
+      "area": "Backups",
+      "implemented": [
+        "server structure blueprints",
+        "selected channel/role/thread recovery",
+        "limited message snapshots and recovery bundles"
+      ],
+      "gaps": [
+        "scheduled per-server snapshots and version inventory",
+        "template library and preview-diff",
+        "selective restore controls and progress",
+        "emojis/stickers/bans settings export",
+        "document Discord API restoration limits"
+      ],
+      "status": "partial"
+    },
+    {
+      "bot": "YouTube",
+      "area": "Media",
+      "implemented": [],
+      "gaps": [
+        "video channel monitoring and notifications",
+        "authorized channel subscription management",
+        "video data/permissions limitations"
+      ],
+      "status": "missing"
+    }
+  ]
+}
