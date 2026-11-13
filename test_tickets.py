@@ -53,6 +53,7 @@ class TicketsTests(unittest.IsolatedAsyncioTestCase):
         self.guild.get_channel.side_effect = channel_for_id
         self.guild.get_role.return_value = self.role
         self.guild.get_member.return_value = self.member
+        self.guild.fetch_member = AsyncMock(return_value=self.member)
         self.guild.create_text_channel = AsyncMock(return_value=self.channel)
         self.bot = Mock()
         self.bot.user.id = 99
@@ -158,6 +159,29 @@ class TicketsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.cog.records(1)["42"]["status"],"closed")
         self.log_channel.send.assert_awaited_once()
         self.channel.delete.assert_not_awaited()
+
+    async def test_uncached_requester_is_fetched_before_closing(self):
+        self.store.set_option(1, "tickets_records", {
+            "42":{"channel_id":300,"user_id":42,"status":"open","opened_at":1},
+        })
+        self.guild.get_member.return_value = None
+        await self.cog.close_ticket(self.interaction())
+        self.guild.fetch_member.assert_awaited_once_with(42)
+        self.channel.set_permissions.assert_awaited_once()
+        self.assertEqual(self.cog.records(1)["42"]["status"], "closed")
+
+    async def test_unavailable_requester_does_not_claim_a_closed_ticket(self):
+        import discord
+        self.store.set_option(1, "tickets_records", {
+            "42":{"channel_id":300,"user_id":42,"status":"open","opened_at":1},
+        })
+        self.guild.get_member.return_value = None
+        self.guild.fetch_member.side_effect = discord.Forbidden(
+            NS(status=403, reason="Forbidden"), "No access",
+        )
+        await self.cog.close_ticket(self.interaction())
+        self.assertEqual(self.cog.records(1)["42"]["status"], "open")
+        self.channel.set_permissions.assert_not_awaited()
 
     async def test_stranger_cannot_close_another_users_ticket(self):
         self.store.set_option(1,"tickets_records",{
