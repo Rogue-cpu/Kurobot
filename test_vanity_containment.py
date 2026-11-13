@@ -94,6 +94,19 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.containment.record(1, 15)["roles"], [])
         self.member.add_roles.assert_awaited_once()
 
+    async def test_quarantine_hold_removes_regained_dangerous_role(self):
+        await self.containment.quarantine(self.guild, 15, "vanity change")
+        self.member.roles.append(self.admin)
+        result = await self.containment.uphold(self.guild, self.member, [self.admin])
+        self.assertIn("removed 1", result)
+        self.assertEqual(self.member.roles, [self.reader])
+        self.assertEqual(self.containment.record(1, 15)["roles"], [12])
+
+    async def test_non_quarantined_user_does_not_trigger_hold(self):
+        result = await self.containment.uphold(self.guild, self.member, [self.admin])
+        self.assertIsNone(result)
+        self.member.remove_roles.assert_not_awaited()
+
     async def test_bot_accounts_are_not_automatically_modified(self):
         self.member.bot = True
         result = await self.containment.quarantine(self.guild, 15, "vanity change")
