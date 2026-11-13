@@ -39,6 +39,8 @@ class Kuro(commands.Bot):
         await self.add_cog(Wishlist(self, store, self.get_cog("Features")))
         from backup_commands import Backups
         await self.add_cog(Backups(self,store))
+        from vanity_guard import VanityGuard
+        await self.add_cog(VanityGuard(self, store))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
