@@ -75,6 +75,20 @@ class VanityGuardTests(unittest.IsolatedAsyncioTestCase):
         self.guard.timeout_actor.assert_awaited_once_with(self.guild, 12, 10)
         self.assertEqual(self.store.option(1, "vanity_incidents")[0]["actor"], 12)
 
+    async def test_failed_alert_cannot_trigger_punishment(self):
+        import discord
+        config = self.store.option(1, "vanity_guard")
+        config["timeout_minutes"] = 10
+        self.store.set_option(1, "vanity_guard", config)
+        self.guard.match_audit_actor = AsyncMock(return_value=12)
+        self.guard.timeout_actor = AsyncMock()
+        # Discord's HTTPException needs a response with status.
+        response = NS(status=403, reason="Forbidden")
+        self.channel.send.side_effect = discord.HTTPException(response, "Cannot send")
+        await self.guard.inspect(self.guild, "changed", "gateway")
+        self.guard.timeout_actor.assert_not_called()
+        self.assertEqual(self.store.option(1, "vanity_guard")["last_seen"], "original")
+
     async def test_owner_cannot_be_timed_out(self):
         self.assertEqual(
             await self.guard.timeout_actor(self.guild, 5, 10),
