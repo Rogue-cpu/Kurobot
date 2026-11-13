@@ -26,7 +26,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
-| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
+| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity enforcement`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
@@ -97,9 +97,12 @@ to read the code, plus View Channel and Send Messages in the alert channel.
   recent gateway change with an **exactly matching** audit-log entry, when Kuro
   can moderate that member. The option defaults to **0 (alert-only)**. It
   excludes the server owner, bots, administrators and members above Kuro's role.
+  Change this setting later with `/vanity enforcement timeout_minutes:10` without
+  changing the protected vanity baseline.
 - `/vanity test` safely checks alerts without touching the live code.
   `/vanity status` reads the current code. If a legitimate owner change occurs,
   `/vanity approve` sets the **current** code as the new protected baseline.
+  Re-running `/vanity setup` cannot silently overwrite a mismatched baseline.
   Disabling monitoring does not remove incident history.
 
 **Important API limitation:** Discord's current bot API does not permit reliable
