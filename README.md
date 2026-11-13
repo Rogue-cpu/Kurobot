@@ -111,6 +111,12 @@ to read the code, plus View Channel and Send Messages in the alert channel.
   `/vanity response mode:timeout` after setting a nonzero duration.
 - `/vanity risk` lets the owner review roles with Administrator or Manage
   Server permission, including permissions granted to @everyone.
+  Kuro also alerts when a dangerous new role is granted, when a role gains
+  Administrator/Manage Server permission, or when a member is assigned a
+  privileged role. These events are warnings, not proof of an attacker.
+  **Quarantine hold** automatically removes dangerous roles newly regranted
+  to an already quarantined member where Kuro has permission.
+  This is not a substitute for limiting Manage Server access.
 - `/vanity quarantine_status member:@user` shows the recorded role removal.
   `/vanity quarantine_restore member:@user confirm:true` explicitly restores
   recorded roles after owner verification. **Restoring dangerous roles can
