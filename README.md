@@ -27,6 +27,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
 | Audit-log anti-nuke warning system | `/antinuke setup`, `/antinuke status`, `/antinuke test`, `/antinuke incidents`, `/antinuke disable` |
+| Join-burst raid warnings | `/raid setup`, `/raid status`, `/raid test`, `/raid disable` |
 | Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity preapprove`, `/vanity cancel_preapproval`, `/vanity drill`, `/vanity enforcement`, `/vanity response`, `/vanity risk`, `/vanity quarantine_status`, `/vanity quarantine_restore`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
@@ -113,6 +114,24 @@ must allow Kuro to view and send messages.
   provides no audit record, or reverse all changes. Quarantine automation,
   anti-raid verification, webhook policies and finer-grained permission
   containment require separate review and live testing.
+
+### Raid warning foundation
+
+The raid monitor is also **off by default**. The server owner enables it with
+`/raid setup channel:#security-alerts threshold:8 window_seconds:60`.
+Kuro needs the Server Members intent (already enabled for its existing member
+features) and permission to send in the selected channel.
+
+- Counts unique non-bot member joins inside a configurable 30–300 second window.
+  Default: 8 joins per 60 seconds. It includes how many of those accounts
+  were created less than seven days ago as a **review signal**, not evidence
+  that they are malicious or alternate accounts.
+- Alerts the owner with the join burst count, stores a bounded and temporary
+  per-server record of joins, and suppresses repeat notices within one window.
+- `/raid test` is a harmless alert delivery check. `/raid status` verifies the
+  settings and `/raid disable` stops the monitoring.
+- **No automatic kicks, bans, permission changes or lockdown** in this release.
+  Rapid legitimate activity can resemble a raid, so operator review comes first.
 
 ### Custom vanity invite protection
 
@@ -208,7 +227,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
