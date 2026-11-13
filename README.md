@@ -4,45 +4,40 @@ A standalone Discord bot for Kuro, hosted on Railway, separate from Synapse.
 
 New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open the [printable guide](docs/Kuro%20Beginner%20Guide.html) locally in your browser. The guide explains roles, setup commands, and what to expect after a channel deletion.
 
-## Apex unified command hub
+## Apex unified functional command center
 
-Run **\`/hub\`** as the server owner to open an ephemeral interactive Discord
-menu. The top dropdown switches between eight functional compartments:
-Security, Moderation, Support, Community, Media, Creative, Discovery and
-Backups. Every compartment lists relevant existing commands or clearly marks
-planned commands. Select a source bot to inspect its migration status.
+Use `/hub` as the server owner to open an ephemeral menu with Security,
+Moderation, Tickets, Community, Media, Backups, Utilities and Automation.
+Each section leads to specific **Apex functions**, not a catalog of competitors.
 
-The screenshot-derived Atlas includes the following **32 distinct bot labels**:
-.fmbot, Appy, Arcane, BibleBot, Confessions, Conquest, Daedalus, DISBOARD,
-Discodus, DiscordServers, Dyno, EazyAutodelete, GiveawayBot, Jockie Music,
-kesarAI, Kuro’s Pet, Make it a Quote, ModMail, Security, Server Tag Manager,
-Ticket Tool, Tupperbox, Vetra, YAGPDB.xyz, Discohook Utils, Emoji Stealer,
-Honeypot, InviteLogger, SnipeBot, TTS Bot, Xenon and YouTube.
+The hub displays implemented vs planned features and their real slash commands.
+Some safe features have functioning `Run / View` actions (vanity status,
+anti-nuke and raid configuration, ticket creation, ticket status, backup
+availability). Dangerous operations require explicit, permission-checked
+commands and cannot be triggered by browsing menus.
 
-Selecting one entry uses its **actual cached Discord bot avatar from the
-current server** as the embed thumbnail when available. It does not copy the
-bot's assets or claim that the other bot is affiliated with Apex. The image
-may be absent if the bot is not present or cached; the hub never invents an
-asset URL. Third-party names and logos are identifiers for migration review,
-not Apex's official brand. In particular, public-directory audience and
-third-party music services cannot be absorbed into Apex just by copying
-their commands.
+### Native support tickets
 
-This first UI is a **navigation and coverage directory**. It deliberately
-does not remotely invoke slash commands, ban members, or change server
-settings through a dropdown. Existing direct commands continue to work.
-Future modules can add permission-checked buttons and modals for routine
-tasks without increasing the number of root slash commands for every action.
-Discord's native slash commands have platform command/option limits; the
-single interactive hub creates space for browsing, not unlimited native
-slash-command nesting. Menus expire after five minutes; rerun \`/hub\` to reopen.
+Apex has an initial native ticket module. The server owner configures
+`/tickets setup` with the ticket category, staff role and log channel, then
+uses `/tickets panel` to publish a persistent ticket-opening button.
+A member can open a private text channel visible to the requester, selected
+staff, Kuro and Discord administrators, and use a persistent close button.
+Closing makes the requester read-only, retains the conversation, and records
+the closure. No automatic transcript download or channel deletion occurs.
+Use `/tickets status` and `/tickets disable` to manage the module.
+
+The existing system does not yet duplicate premium Ticket Tool forms,
+assignments, DM-based ModMail or transcript exports. All new modules start
+disabled and require explicit owner setup. Existing features remain intact.
 
 ## Commands
 
 | Feature | Commands |
 | --- | --- |
 | Connection and configuration | `/ping`, `/features_status` |
-| Apex unified interactive navigation | `/hub` (owner menu), `/apex inventory`, `/apex readiness` |
+| Apex functional command center | `/hub` (owner feature menu), `/apex inventory`, `/apex readiness` |
+| Private support tickets | `/tickets setup`, `/tickets panel`, `/tickets status`, `/tickets disable` |
 | Beginner help | `/guide` |
 | Application-owner recovery bundles | `/backups setup`, `/backups create`, `/backups status`, `/backups verify` |
 | Scheduled bans | `/deathnote`, `/deathnote_cancel`, `/deathnote_list` |
@@ -261,7 +256,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub test_tickets -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
