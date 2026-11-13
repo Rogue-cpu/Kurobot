@@ -104,6 +104,42 @@ class VanityContainment:
             summary += "; " + str(len(failed) + len(unreachable)) + " role(s) need owner attention"
         return summary + "; owner-only role restoration required"
 
+    async def uphold(self, guild, member, added_roles):
+        """Remove regranted privileged roles for an *already* quarantined user."""
+        record = self.record(guild.id, member.id)
+        if record.get("status") not in ("in_progress", "contained", "partial"):
+            return None
+        dangerous = [role for role in added_roles if dangerous_role(role)]
+        if not dangerous:
+            return None
+        if member.id in (guild.owner_id, self.bot.user.id) or member.bot:
+            return "Quarantine hold needs owner intervention (exempt account)."
+        if not guild.me.guild_permissions.manage_roles or member.top_role >= guild.me.top_role:
+            return "Quarantine hold cannot remove newly granted roles; fix Kuro role hierarchy."
+        removed, failed = [], []
+        for role in dangerous:
+            if role.is_default() or role.managed or role >= guild.me.top_role:
+                failed.append(role.id)
+                continue
+            try:
+                await member.remove_roles(
+                    role, reason="Kuro vanity quarantine hold: privileged role regrant",
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                failed.append(role.id)
+                continue
+            removed.append(role.id)
+            if role.id not in record["roles"]:
+                record["roles"].append(role.id)
+                self.store.set_option(guild.id, quarantine_key(member.id), record)
+        if failed:
+            record["status"] = "partial"
+            self.store.set_option(guild.id, quarantine_key(member.id), record)
+        return (
+            "Quarantine hold removed " + str(len(removed)) + " role(s); "
+            + str(len(failed)) + " require owner attention."
+        )
+
     async def restore(self, guild, member_id):
         """Called only after a confirm:true owner command. Never automatic."""
         record = self.record(guild.id, member_id)
