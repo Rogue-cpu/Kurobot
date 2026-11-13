@@ -26,6 +26,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
+| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
@@ -79,6 +80,35 @@ After channel recovery, Kuro replays the latest 50 saved messages as labelled ar
 
 **Disable recovery before intentionally deleting channels.** Backups remain when recovery is disabled. Optional `/recovery_plus setup` adds deleted-role definitions and public forum/thread recovery. Ordinary role assignments are restored in small batches; sensitive assignments need owner review. `/recovery_plus history` captures existing accessible history and archived public threads within its stated limits. Private threads, original message IDs/authorship, reactions, pins, invites, and every specialized channel setting are not restored. Kuro does not punish attackers or operate without its permissions. Recovery restores deleted channels; it does not automatically roll back every edit to an existing channel. No server-destruction triggers or bot self-replication are implemented; owner-controlled blueprints copy structure into existing consenting destination servers.
 
+### Custom vanity invite protection
+
+Only the server owner can enable, approve a new baseline, disable, or test this guard.
+The server needs an active vanity invite. Use `/vanity setup channel:#security-alerts`
+to protect its **current** code and enable alerts. Kuro needs **Manage Server**
+to read the code, plus View Channel and Send Messages in the alert channel.
+
+- Kuro compares the protected code with Discord's current code on guild updates and
+  every two minutes (including after restarts). It keeps the protected value and a
+  bounded incident history in its persistent SQLite volume.
+- Each unexpected code change alerts the configured channel and mentions the server
+  owner. Attribution is only reported as confirmed when a matching recent Discord
+  audit entry identifies the changer; give Kuro **View Audit Log** for this.
+- Optional `timeout_minutes:10` on setup allows timed moderation only for a
+  recent gateway change with an **exactly matching** audit-log entry, when Kuro
+  can moderate that member. The option defaults to **0 (alert-only)**. It
+  excludes the server owner, bots, administrators and members above Kuro's role.
+- `/vanity test` safely checks alerts without touching the live code.
+  `/vanity status` reads the current code. If a legitimate owner change occurs,
+  `/vanity approve` sets the **current** code as the new protected baseline.
+  Disabling monitoring does not remove incident history.
+
+**Important API limitation:** Discord's current bot API does not permit reliable
+automatic vanity-code changes. Kuro **cannot prevent the first change or
+automatically take back a stolen code**. The owner must use Discord Server Settings
+to restore it. Protection is detection, notification and optional limited
+moderation, not guaranteed vanity restoration. Keep Manage Server restricted and
+use Discord MFA/administrator security.
+
 ## Hosting and setup
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), enable **Server Members Intent**. For message-based features, also enable **Message Content Intent**.
@@ -103,7 +133,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
