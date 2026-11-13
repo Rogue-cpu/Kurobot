@@ -38,6 +38,7 @@ class TicketsTests(unittest.IsolatedAsyncioTestCase):
         self.channel.mention = "<#300>"
         self.channel.send = AsyncMock()
         self.channel.set_permissions = AsyncMock()
+        self.channel.delete = AsyncMock()
         self.guild = Mock()
         self.guild.id = 1
         self.guild.owner_id = 5
