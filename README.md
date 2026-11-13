@@ -26,7 +26,7 @@ New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open
 | Role and public thread recovery | `/recovery_plus setup`, `/recovery_plus history`, `/recovery_plus role_review` |
 | Server structure copies | `/blueprint create`, `/blueprint import`, `/blueprint status`, `/blueprint cancel` |
 | Owner alerts and reversible lockdown | `/protection setup`, `/protection lock`, `/protection unlock` |
-| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity enforcement`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
+| Vanity URL monitoring and owner alerts | `/vanity setup`, `/vanity status`, `/vanity approve`, `/vanity enforcement`, `/vanity response`, `/vanity risk`, `/vanity quarantine_status`, `/vanity quarantine_restore`, `/vanity disable`, `/vanity test`, `/vanity incidents` |
 | Moderation and forum utilities | `/tools warn`, `/tools warnings`, `/tools purge`, `/tools sticky`, `/tools forum` |
 | Member role picker | `/selfrole setup`, `/selfrole list`, `/selfrole pick` |
 
@@ -99,6 +99,22 @@ to read the code, plus View Channel and Send Messages in the alert channel.
   excludes the server owner, bots, administrators and members above Kuro's role.
   Change this setting later with `/vanity enforcement timeout_minutes:10` without
   changing the protected vanity baseline.
+- `/vanity response mode:quarantine` enables Wick-style **privilege removal** after
+  an exact recent audit-log match, where Kuro is higher than the member and
+  holds Manage Roles. The bot removes only dangerous, non-managed roles it can
+  manage, recording each successful removal in persistent storage. This can
+  contain an administrator below Kuro, unlike a regular Discord timeout.
+  It deliberately does **not** touch owners, bot accounts, or members above
+  Kuro's role; these require direct owner intervention.
+- `/vanity response mode:alert` returns to alert-only monitoring. For a
+  regular timeout, set `/vanity enforcement timeout_minutes:10` or select
+  `/vanity response mode:timeout` after setting a nonzero duration.
+- `/vanity risk` lets the owner review roles with Administrator or Manage
+  Server permission, including permissions granted to @everyone.
+- `/vanity quarantine_status member:@user` shows the recorded role removal.
+  `/vanity quarantine_restore member:@user confirm:true` explicitly restores
+  recorded roles after owner verification. **Restoring dangerous roles can
+  grant Administrator again**; restoration never happens automatically.
 - `/vanity test` safely checks alerts without touching the live code.
   `/vanity status` reads the current code. If a legitimate owner change occurs,
   `/vanity approve` sets the **current** code as the new protected baseline.
@@ -136,7 +152,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
