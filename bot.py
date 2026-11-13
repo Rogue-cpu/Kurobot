@@ -41,6 +41,8 @@ class Kuro(commands.Bot):
         await self.add_cog(Backups(self,store))
         from vanity_guard import VanityGuard
         await self.add_cog(VanityGuard(self, store))
+        from antinuke import AntiNuke
+        await self.add_cog(AntiNuke(self, store))
         guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         if guild_id:
             guild = discord.Object(id=int(guild_id))
@@ -89,6 +91,7 @@ class Kuro(commands.Bot):
 
 intents = discord.Intents.default()
 intents.members = True
+intents.moderation = True  # Required for on_audit_log_entry_create gateway events.
 intents.message_content = os.getenv("MESSAGE_CONTENT_ENABLED", "false").lower() == "true"
 bot = Kuro(command_prefix=commands.when_mentioned, intents=intents)
 bot.data_dir = DATA_DIR
