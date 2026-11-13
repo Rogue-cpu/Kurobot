@@ -4,6 +4,14 @@ A standalone Discord bot for Kuro, hosted on Railway, separate from Synapse.
 
 New to the bot? Start with the [beginner guide](docs/BEGINNER_GUIDE.md), or open the [printable guide](docs/Kuro%20Beginner%20Guide.html) locally in your browser. The guide explains roles, setup commands, and what to expect after a channel deletion.
 
+## Complete replacement coverage
+
+Apex tracks all 32 source bots in [its capability ledger](docs/apex_feature_matrix.json)
+and [feature coverage plan](docs/APEX_COVERAGE_PLAN.md). Existing capabilities
+are reused; missing behaviors are added to their native modules. No source
+bot is marked fully replaced until its in-use workflows are proven in a
+controlled server. External listing audiences are a distinct dependency.
+
 ## Apex unified functional command center
 
 Use `/hub` as the server owner to open an ephemeral menu with Security,
@@ -256,7 +264,7 @@ Do not overwrite an existing `.env`. Local credentials and `data/`, `.venv/`, an
 ## Validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub test_tickets -q
+.\.venv\Scripts\python.exe -m unittest test_recovery_backup test_wishlist test_features test_storage test_vanity_guard test_vanity_containment test_antinuke test_raid_guard test_apex test_apex_hub test_tickets test_apex_matrix -q
 ```
 
 Tests cover persistence and isolation, single-use invitations, whitelist and hierarchy enforcement, Deathnote parsing/matching, expired verification challenges, bounded message archives, recovery dependencies, and offline command registration. Live functional checks require two Discord servers and test accounts; deployment health alone does not establish that cross-server bans, relays, or deletion recovery work in your channel permissions.
