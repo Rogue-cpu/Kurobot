@@ -153,6 +153,10 @@ class VanityContainment:
             raise ValueError("Member is unavailable; original role records were retained.") from exc
         if member.top_role >= guild.me.top_role:
             raise ValueError("Member is above Kuro's role. Original role records were retained.")
+        # Suspend quarantine hold before adding roles; otherwise Discord's
+        # member-update event could immediately revoke owner-approved changes.
+        record["status"] = "restoring"
+        self.store.set_option(guild.id, quarantine_key(member_id), record)
         restored, failed, missing = [], [], []
         for role_id in list(record["roles"]):
             role = guild.get_role(role_id)
